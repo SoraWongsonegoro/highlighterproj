@@ -3,8 +3,6 @@ const container = document.getElementById('collections-container');
 const newCollectionInput = document.getElementById('new-collection-input');
 const newCollectionBtn = document.getElementById('new-collection-btn');
 
-// --- Load ---
-
 function loadAll() {
     chrome.storage.local.get(['saved_snippets', 'collections'], (result) => {
         const unsorted = result.saved_snippets || [];
@@ -13,16 +11,12 @@ function loadAll() {
     });
 }
 
-// --- Render ---
-
 function renderAll(unsorted, collections) {
     container.innerHTML = '';
     const collectionNames = Object.keys(collections);
 
-    // Unsorted section
     renderSection('Unsorted', unsorted, collectionNames, false);
 
-    // Collection sections
     collectionNames.forEach((name) => {
         renderSection(name, collections[name], [], true);
     });
@@ -32,7 +26,6 @@ function renderSection(title, snippets, moveTargets, isDeletable) {
     const block = document.createElement('div');
     block.className = 'collection-block';
 
-    // Header
     const header = document.createElement('div');
     header.className = 'collection-header';
 
@@ -50,7 +43,6 @@ function renderSection(title, snippets, moveTargets, isDeletable) {
 
     block.appendChild(header);
 
-    // Snippets
     const ul = document.createElement('ul');
 
     if (snippets.length === 0) {
@@ -62,12 +54,30 @@ function renderSection(title, snippets, moveTargets, isDeletable) {
         snippets.forEach((snippet, index) => {
             const li = document.createElement('li');
 
-            const text = document.createElement('span');
-            text.className = 'snippet-text';
-            text.textContent = snippet;
-            li.appendChild(text);
+            // Handle both plain strings and objects
+            const snippetText = typeof snippet === 'object' ? snippet.text : snippet;
+            const snippetUrl = typeof snippet === 'object' ? snippet.url : null;
+            const snippetTitle = typeof snippet === 'object' ? snippet.title : null;
 
-            // Only show move controls if there are targets to move to
+            const textWrapper = document.createElement('div');
+            textWrapper.className = 'snippet-text';
+
+            const text = document.createElement('span');
+            text.textContent = snippetText;
+            textWrapper.appendChild(text);
+
+            // Show source page link if available
+            if (snippetUrl) {
+                const source = document.createElement('a');
+                source.href = snippetUrl;
+                source.textContent = snippetTitle || snippetUrl;
+                source.target = '_blank';
+                source.style.cssText = 'display:block; font-size:11px; color:#007bff; margin-top:3px; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; max-width:160px;';
+                textWrapper.appendChild(source);
+            }
+
+            li.appendChild(textWrapper);
+
             if (moveTargets.length > 0) {
                 const controls = document.createElement('div');
                 controls.className = 'snippet-controls';
@@ -84,9 +94,7 @@ function renderSection(title, snippets, moveTargets, isDeletable) {
                 const moveBtn = document.createElement('button');
                 moveBtn.className = 'move-btn';
                 moveBtn.textContent = 'Move';
-                moveBtn.addEventListener('click', () => {
-                    moveToCollection(index, select.value);
-                });
+                moveBtn.addEventListener('click', () => moveToCollection(index, select.value));
 
                 controls.appendChild(select);
                 controls.appendChild(moveBtn);
@@ -100,8 +108,6 @@ function renderSection(title, snippets, moveTargets, isDeletable) {
     block.appendChild(ul);
     container.appendChild(block);
 }
-
-// --- Actions ---
 
 function createCollection(name) {
     const trimmed = name.trim();
@@ -146,8 +152,6 @@ function clearAll() {
     if (!confirm('Clear everything?')) return;
     chrome.storage.local.set({ saved_snippets: [], collections: {} }, loadAll);
 }
-
-// --- Events ---
 
 newCollectionBtn.addEventListener('click', () => {
     createCollection(newCollectionInput.value);
