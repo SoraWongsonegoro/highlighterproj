@@ -36,14 +36,14 @@ popupBtn.addEventListener('click', () => {
     
     if (selectedText) {
         // 1. Fetch current snippets from storage
-        chrome.storage.local.get(['saved_snippets']).then((result) => {
+        chrome.storage.local.get(['saved_snippets'], (result) => {
             const snippets = result.saved_snippets || [];
             
             // 2. Add the new text
             snippets.push(selectedText);
             
             // 3. Save it back to storage
-            chrome.storage.local.set({ saved_snippets: snippets }).then(() => {
+            chrome.storage.local.set({ saved_snippets: snippets }, () => {
                 popupBtn.style.display = 'none';
                 window.getSelection().removeAllRanges(); // Clear highlight
             });
