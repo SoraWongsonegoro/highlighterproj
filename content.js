@@ -68,22 +68,37 @@ function highlightRange(range) {
 
 popupBtn.addEventListener('click', () => {
     if (!pendingRange) return;
+    if (!isExtensionValid()) {
+        popupBtn.remove();
+        return;
+    }
 
     const selectedText = pendingRange.toString().trim();
+    if (!selectedText) return;
 
-    if (selectedText) {
+    // Highlight first — pure DOM, no extension context needed
+    highlightRange(pendingRange);
+    pendingRange = null;
+    popupBtn.style.display = 'none';
+    window.getSelection().removeAllRanges();
+
+    // Save separately — if context dies here, highlight already succeeded
+    try {
         chrome.storage.local.get(['saved_snippets'], (result) => {
+            if (chrome.runtime.lastError) {
+                console.warn('Storage error:', chrome.runtime.lastError.message);
+                return;
+            }
             const snippets = result.saved_snippets || [];
             snippets.push(selectedText);
-
             chrome.storage.local.set({ saved_snippets: snippets }, () => {
-                // Apply highlight only after save succeeds
-                highlightRange(pendingRange);
-                pendingRange = null;
-
-                popupBtn.style.display = 'none';
-                window.getSelection().removeAllRanges();
+                if (chrome.runtime.lastError) {
+                    console.warn('Storage error:', chrome.runtime.lastError.message);
+                }
             });
         });
+    } catch (e) {
+        console.warn('Extension context lost during save:', e.message);
+        popupBtn.remove();
     }
 });
