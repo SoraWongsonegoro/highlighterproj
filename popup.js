@@ -41,13 +41,21 @@ function renderAllQuotes() {
     container.innerHTML = '';
     const collectionNames = Object.keys(allCollections);
 
-    if (allSnippets.length === 0) {
+    // Merge unsorted and all collection snippets
+    const collectionSnippets = collectionNames.flatMap(name => allCollections[name]);
+    const allQuotes = [...allSnippets, ...collectionSnippets];
+
+    if (allQuotes.length === 0) {
         container.innerHTML = '<p class="empty-msg">No saved quotes yet.</p>';
         return;
     }
 
     allSnippets.forEach((snippet, index) => {
-        container.appendChild(makeSnippetCard(snippet, index, collectionNames, 'unsorted'));
+        container.appendChild(makeSnippetCard(snippet, index, 'unsorted', null));
+    });
+    collectionSnippets.forEach((snippet, collectionName) => {
+        const name = collectionNames.find(n => allCollections[n].includes(snippet));
+        container.appendChild(makeSnippetCard(snippet, null, 'collection', name));
     });
 }
 
@@ -95,7 +103,7 @@ function renderBySite() {
         });
 
         items.forEach(({ snippet, index }) => {
-            list.appendChild(makeSnippetCard(snippet, index, collectionNames, 'unsorted'));
+            list.appendChild(makeSnippetCard(snippet, index, 'unsorted', null));
         });
 
         container.appendChild(header);
@@ -153,8 +161,7 @@ function openCollectionDetail(name) {
     }
 
     snippets.forEach((snippet) => {
-        const card = makeSnippetCard(snippet, null, [], 'collection');
-        detailList.appendChild(card);
+        detailList.appendChild(makeSnippetCard(snippet, null, 'collection', name));
     });
 }
 
@@ -164,9 +171,91 @@ document.getElementById('back-btn').addEventListener('click', () => {
     document.querySelector('.toolbar').style.display = 'flex';
 });
 
+// --- Move Modal ---
+
+let pendingMove = null; // { snippet, index, fromContext, fromCollection }
+
+function openMoveModal(snippet, index, fromContext, fromCollection) {
+    pendingMove = { snippet, index, fromContext, fromCollection };
+
+    const modal = document.getElementById('move-modal');
+    const options = document.getElementById('move-modal-options');
+    options.innerHTML = '';
+
+    // Build destination list
+    const destinations = [];
+
+    // Unsorted is a valid destination if snippet isn't already there
+    if (fromContext !== 'unsorted') {
+        destinations.push({ label: 'Unsorted', value: '__unsorted__' });
+    }
+
+    // All collections except the one it's already in
+    Object.keys(allCollections).forEach((name) => {
+        if (name !== fromCollection) {
+            destinations.push({ label: name, value: name });
+        }
+    });
+
+    if (destinations.length === 0) {
+        options.innerHTML = '<p class="empty-msg">No other destinations available.</p>';
+    } else {
+        destinations.forEach(({ label, value }) => {
+            const btn = document.createElement('button');
+            btn.textContent = label;
+            btn.style.cssText = 'display:block; width:100%; padding:8px 10px; margin-bottom:6px; background:#f8f9fa; border:1px solid #dee2e6; border-radius:4px; cursor:pointer; font-size:13px; text-align:left;';
+            btn.addEventListener('mouseover', () => btn.style.background = '#e9ecef');
+            btn.addEventListener('mouseout', () => btn.style.background = '#f8f9fa');
+            btn.addEventListener('click', () => confirmMove(value));
+            options.appendChild(btn);
+        });
+    }
+
+    modal.style.display = 'flex';
+}
+
+function confirmMove(destination) {
+    const { snippet, index, fromContext, fromCollection } = pendingMove;
+
+    chrome.storage.local.get(['saved_snippets', 'collections'], (result) => {
+        const unsorted = result.saved_snippets || [];
+        const collections = result.collections || {};
+
+        // Remove from source
+        if (fromContext === 'unsorted') {
+            unsorted.splice(index, 1);
+        } else {
+            const srcIndex = collections[fromCollection].indexOf(snippet);
+            if (srcIndex !== -1) collections[fromCollection].splice(srcIndex, 1);
+        }
+
+        // Add to destination
+        if (destination === '__unsorted__') {
+            unsorted.push(snippet);
+        } else {
+            collections[destination].push(snippet);
+        }
+
+        chrome.storage.local.set({ saved_snippets: unsorted, collections }, () => {
+            closeMoveModal();
+            loadAll();
+        });
+    });
+}
+
+function closeMoveModal() {
+    document.getElementById('move-modal').style.display = 'none';
+    pendingMove = null;
+}
+
+document.getElementById('move-modal-cancel').addEventListener('click', closeMoveModal);
+document.getElementById('move-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('move-modal')) closeMoveModal();
+});
+
 // --- Snippet card builder ---
 
-function makeSnippetCard(snippet, index, collectionNames, context) {
+function makeSnippetCard(snippet, index, context, fromCollection) {
     const snippetText = typeof snippet === 'object' ? snippet.text : snippet;
     const snippetUrl = typeof snippet === 'object' ? snippet.url : null;
     const snippetTitle = typeof snippet === 'object' ? snippet.title : null;
@@ -193,29 +282,14 @@ function makeSnippetCard(snippet, index, collectionNames, context) {
 
     card.appendChild(body);
 
-    // Move controls — only for unsorted snippets with collections to move to
-    if (context === 'unsorted' && collectionNames.length > 0) {
-        const controls = document.createElement('div');
-        controls.className = 'snippet-controls';
-
-        const select = document.createElement('select');
-        select.className = 'move-select';
-        collectionNames.forEach((name) => {
-            const option = document.createElement('option');
-            option.value = name;
-            option.textContent = name;
-            select.appendChild(option);
-        });
-
-        const moveBtn = document.createElement('button');
-        moveBtn.className = 'move-btn';
-        moveBtn.textContent = 'Move';
-        moveBtn.addEventListener('click', () => moveToCollection(index, select.value));
-
-        controls.appendChild(select);
-        controls.appendChild(moveBtn);
-        card.appendChild(controls);
-    }
+    // Move button — always shown
+    const moveBtn = document.createElement('button');
+    moveBtn.textContent = 'Move';
+    moveBtn.style.cssText = 'font-size:11px; padding:4px 8px; background:#007bff; color:white; border:none; border-radius:3px; cursor:pointer; white-space:nowrap; align-self:flex-start;';
+    moveBtn.addEventListener('mouseover', () => moveBtn.style.background = '#0056b3');
+    moveBtn.addEventListener('mouseout', () => moveBtn.style.background = '#007bff');
+    moveBtn.addEventListener('click', () => openMoveModal(snippet, index, context, fromCollection));
+    card.appendChild(moveBtn);
 
     return card;
 }
