@@ -161,7 +161,7 @@ function openCollectionDetail(name) {
     }
 
     snippets.forEach((snippet) => {
-        detailList.appendChild(makeSnippetCard(snippet, null, 'collection', name));
+        detailList.appendChild(makeSnippetCard(snippet, index, 'collection', name));
     });
 }
 
@@ -221,12 +221,11 @@ function confirmMove(destination) {
         const unsorted = result.saved_snippets || [];
         const collections = result.collections || {};
 
-        // Remove from source
+        // Remove from source using index directly
         if (fromContext === 'unsorted') {
             unsorted.splice(index, 1);
         } else {
-            const srcIndex = collections[fromCollection].indexOf(snippet);
-            if (srcIndex !== -1) collections[fromCollection].splice(srcIndex, 1);
+            collections[fromCollection].splice(index, 1);
         }
 
         // Add to destination
@@ -243,17 +242,22 @@ function confirmMove(destination) {
     });
 }
 
-function closeMoveModal() {
-    document.getElementById('move-modal').style.display = 'none';
-    pendingMove = null;
+function deleteSnippet(index, fromContext, fromCollection) {
+    if (!confirm('Delete this quote?')) return;
+
+    chrome.storage.local.get(['saved_snippets', 'collections'], (result) => {
+        const unsorted = result.saved_snippets || [];
+        const collections = result.collections || {};
+
+        if (fromContext === 'unsorted') {
+            unsorted.splice(index, 1);
+        } else {
+            collections[fromCollection].splice(index, 1);
+        }
+
+        chrome.storage.local.set({ saved_snippets: unsorted, collections }, () => loadAll());
+    });
 }
-
-document.getElementById('move-modal-cancel').addEventListener('click', closeMoveModal);
-document.getElementById('move-modal').addEventListener('click', (e) => {
-    if (e.target === document.getElementById('move-modal')) closeMoveModal();
-});
-
-// --- Snippet card builder ---
 
 function makeSnippetCard(snippet, index, context, fromCollection) {
     const snippetText = typeof snippet === 'object' ? snippet.text : snippet;
@@ -282,27 +286,41 @@ function makeSnippetCard(snippet, index, context, fromCollection) {
 
     card.appendChild(body);
 
-    // Move button — always shown
+    // Button group
+    const btnGroup = document.createElement('div');
+    btnGroup.style.cssText = 'display:flex; flex-direction:column; gap:4px; align-self:flex-start;';
+
     const moveBtn = document.createElement('button');
     moveBtn.textContent = 'Move';
-    moveBtn.style.cssText = 'font-size:11px; padding:4px 8px; background:#007bff; color:white; border:none; border-radius:3px; cursor:pointer; white-space:nowrap; align-self:flex-start;';
+    moveBtn.style.cssText = 'font-size:11px; padding:4px 8px; background:#007bff; color:white; border:none; border-radius:3px; cursor:pointer; white-space:nowrap;';
     moveBtn.addEventListener('mouseover', () => moveBtn.style.background = '#0056b3');
     moveBtn.addEventListener('mouseout', () => moveBtn.style.background = '#007bff');
     moveBtn.addEventListener('click', () => openMoveModal(snippet, index, context, fromCollection));
-    card.appendChild(moveBtn);
+
+    const deleteBtn = document.createElement('button');
+    deleteBtn.textContent = 'Delete';
+    deleteBtn.style.cssText = 'font-size:11px; padding:4px 8px; background:#dc3545; color:white; border:none; border-radius:3px; cursor:pointer; white-space:nowrap;';
+    deleteBtn.addEventListener('mouseover', () => deleteBtn.style.background = '#c82333');
+    deleteBtn.addEventListener('mouseout', () => deleteBtn.style.background = '#dc3545');
+    deleteBtn.addEventListener('click', () => deleteSnippet(index, context, fromCollection));
+
+    btnGroup.appendChild(moveBtn);
+    btnGroup.appendChild(deleteBtn);
+    card.appendChild(btnGroup);
 
     return card;
 }
 
-// --- Actions ---
-
-function moveToCollection(snippetIndex, targetCollection) {
-    const unsorted = [...allSnippets];
-    const collections = { ...allCollections };
-    const [snippet] = unsorted.splice(snippetIndex, 1);
-    collections[targetCollection].push(snippet);
-    chrome.storage.local.set({ saved_snippets: unsorted, collections }, () => loadAll());
+function closeMoveModal() {
+    document.getElementById('move-modal').style.display = 'none';
+    pendingMove = null;
 }
+
+document.getElementById('move-modal-cancel').addEventListener('click', closeMoveModal);
+document.getElementById('move-modal').addEventListener('click', (e) => {
+    if (e.target === document.getElementById('move-modal')) closeMoveModal();
+});
+
 
 function createCollection(name) {
     const trimmed = name.trim();
