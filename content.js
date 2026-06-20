@@ -1,9 +1,17 @@
 const popupBtn = document.createElement('button');
-popupBtn.textContent = 'Highlight';
+popupBtn.textContent = 'Save';
 popupBtn.className = 'ts-ext-save-btn';
 document.body.appendChild(popupBtn);
 
 let pendingRange = null;
+
+function isExtensionValid() {
+    try {
+        return !!chrome.runtime?.id;
+    } catch (e) {
+        return false;
+    }
+}
 
 function highlightRange(range) {
     const living = [];
@@ -66,9 +74,37 @@ document.addEventListener('mousedown', (e) => {
 
 popupBtn.addEventListener('click', () => {
     if (!pendingRange) return;
+    if (!isExtensionValid()) {
+        popupBtn.remove();
+        return;
+    }
 
+    const selectedText = pendingRange.toString().trim();
+    if (!selectedText) return;
+
+    // Highlight first — no extension context needed
     highlightRange(pendingRange);
     pendingRange = null;
     popupBtn.style.display = 'none';
     window.getSelection().removeAllRanges();
+
+    // Save after
+    try {
+        chrome.storage.local.get(['saved_snippets'], (result) => {
+            if (chrome.runtime.lastError) {
+                console.warn('Storage error:', chrome.runtime.lastError.message);
+                return;
+            }
+            const snippets = result.saved_snippets || [];
+            snippets.push(selectedText);
+            chrome.storage.local.set({ saved_snippets: snippets }, () => {
+                if (chrome.runtime.lastError) {
+                    console.warn('Storage error:', chrome.runtime.lastError.message);
+                }
+            });
+        });
+    } catch (e) {
+        console.warn('Extension context lost during save:', e.message);
+        popupBtn.remove();
+    }
 });
