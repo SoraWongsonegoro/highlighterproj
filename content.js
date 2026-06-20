@@ -88,7 +88,7 @@ popupBtn.addEventListener('click', () => {
     popupBtn.style.display = 'none';
     window.getSelection().removeAllRanges();
 
-    // Save after
+    // Save after: NOW SAVES AS AN OBJECT
     try {
         chrome.storage.local.get(['saved_snippets'], (result) => {
             if (chrome.runtime.lastError) {
@@ -96,7 +96,16 @@ popupBtn.addEventListener('click', () => {
                 return;
             }
             const snippets = result.saved_snippets || [];
-            snippets.push(selectedText);
+            
+            // Create the new snippet object
+            const newSnippet = {
+                text: selectedText,
+                title: document.title || 'Untitled Page',
+                url: window.location.href
+            };
+            
+            snippets.push(newSnippet);
+            
             chrome.storage.local.set({ saved_snippets: snippets }, () => {
                 if (chrome.runtime.lastError) {
                     console.warn('Storage error:', chrome.runtime.lastError.message);
