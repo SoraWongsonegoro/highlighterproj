@@ -1,0 +1,19 @@
+.ts-ext-save-btn {
+    position: absolute;
+    display: none;
+    z-index: 2147483647; /* Maximum possible z-index to stay above everything */
+    background: #007bff;
+    color: white;
+    border: none;
+    padding: 6px 12px;
+    border-radius: 4px;
+    cursor: pointer;
+    box-shadow: 0 2px 5px rgba(0,0,0,0.2);
+    font-size: 13px;
+    font-family: sans-serif;
+    transition: background 0.2s;
+}
+
+.ts-ext-save-btn:hover {
+    background: #0056b3;
+}
