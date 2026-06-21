@@ -17,9 +17,12 @@ let selectedItems = new Set(); // stores unique keys: "snippet:INDEX" or "collec
 // --- Init ---
 
 function loadAll(callback) {
-    chrome.storage.local.get(['saved_snippets', 'collections'], (result) => {
+    chrome.storage.local.get(['saved_snippets', 'collections', 'sort_mode'], (result) => {
         allSnippets = result.saved_snippets || [];
         allCollections = result.collections || {};
+        if (result.sort_mode === 'date' || result.sort_mode === 'alpha') {
+            sortMode = result.sort_mode;
+        }
         if (!allCollections.favorites) {
             allCollections.favorites = [];
             chrome.storage.local.set({ collections: allCollections }, () => {
@@ -156,7 +159,7 @@ function updatePager() {
     const next = document.getElementById('pager-next');
     if (!pagerRow || !pagerInfo || !prev || !next) return;
 
-    if (currentPageType === 'all' || currentPageType === 'pageDetail' || currentPageType === 'collectionDetail') {
+    if (currentPageType === 'all' || currentPageType === 'pageDetail' || currentPageType === 'collectionDetail' || currentPageType === 'bySiteList') {
         pagerRow.style.display = 'flex';
         const total = currentListItems.length;
         const totalPages = Math.max(1, Math.ceil(total / pageSize));
@@ -180,6 +183,9 @@ function changePage(delta) {
         renderPageDetailList(paginateItems(currentListItems));
     } else if (currentPageType === 'collectionDetail') {
         renderCollectionDetailList(currentPageMeta.name, paginateItems(currentListItems));
+    } else if (currentPageType === 'bySiteList') {
+        renderBySiteList(paginateItems(currentListItems));
+        updatePager();
     }
 }
 
@@ -453,6 +459,7 @@ function initUI() {
             document.querySelectorAll('.page').forEach(p => p.classList.remove('active'));
             tab.classList.add('active');
             activeTab = tab.dataset.tab;
+            currentPage = 1;
             const page = document.getElementById(`page-${activeTab}`);
             if (page) page.classList.add('active');
             renderCurrentTab();
@@ -482,13 +489,9 @@ function initUI() {
     const pageBack = document.getElementById('page-back-btn');
     if (pageBack) {
         pageBack.addEventListener('click', () => {
-            const listContainer = document.getElementById('by-site-list');
-            const detail = document.getElementById('page-detail');
-            if (detail) detail.style.display = 'none';
-            if (listContainer) listContainer.style.display = 'block';
-            currentPageType = 'none';
-            currentListItems = [];
+            currentPage = 1;
             currentPageMeta = null;
+            renderBySite();
             updatePager();
         });
     }
@@ -553,22 +556,6 @@ function initUI() {
         });
     }
 
-    // Reset data button in settings modal
-    const resetBtn = document.getElementById('reset-data-btn');
-    if (resetBtn) {
-        resetBtn.addEventListener('click', () => {
-            const ok = confirm('This will permanently delete ALL saved quotes and collections and cannot be undone. Are you sure you want to reset all data?');
-            if (!ok) return;
-            chrome.storage.local.set({ saved_snippets: [], collections: {} }, () => {
-                // reload state and UI
-                loadAll();
-                const settingsModal = document.getElementById('settings-modal');
-                if (settingsModal) settingsModal.style.display = 'none';
-                alert('All data has been reset.');
-            });
-        });
-    }
-
     // New collection events
     const newCollectionBtn = document.getElementById('new-collection-btn');
     if (newCollectionBtn) {
@@ -599,16 +586,6 @@ function initUI() {
     if (pagerPrev) pagerPrev.addEventListener('click', () => changePage(-1));
     if (pagerNext) pagerNext.addEventListener('click', () => changePage(1));
 
-    const sortSelect = document.getElementById('sort-select');
-    if (sortSelect) {
-        sortSelect.value = sortMode;
-        sortSelect.addEventListener('change', (e) => {
-            sortMode = e.target.value;
-            renderCurrentTab();
-            showSettingsFeedback(`Sort set to ${sortMode === 'date' ? 'Date' : 'A–Z'}.`);
-        });
-    }
-
     const searchInput = document.getElementById('search-input');
     if (searchInput) {
         searchInput.value = searchQuery;
@@ -619,99 +596,17 @@ function initUI() {
         });
     }
 
+    // Settings live on their own page (settings.html) so the import file picker
+    // works reliably — opening a file dialog from an action popup closes it in Firefox.
     const settingsBtn = document.getElementById('settings-btn');
-    const settingsModal = document.getElementById('settings-modal');
-    const settingsClose = document.getElementById('settings-modal-close');
-    const exportDbBtn = document.getElementById('export-db-btn');
-    const importDbBtn = document.getElementById('import-db-btn');
-    const importDbInput = document.getElementById('import-db-input');
-
-    if (settingsBtn && settingsModal) {
+    if (settingsBtn) {
         settingsBtn.addEventListener('click', () => {
-            settingsModal.style.display = 'flex';
-        });
-    }
-    if (settingsClose && settingsModal) {
-        settingsClose.addEventListener('click', () => {
-            settingsModal.style.display = 'none';
-        });
-    }
-    if (settingsModal) {
-        settingsModal.addEventListener('click', (e) => {
-            if (e.target === settingsModal) {
-                settingsModal.style.display = 'none';
+            const url = chrome.runtime.getURL('settings.html');
+            if (chrome.tabs && chrome.tabs.create) {
+                chrome.tabs.create({ url });
+            } else {
+                window.open(url, '_blank');
             }
-        });
-    }
-    if (exportDbBtn) {
-        exportDbBtn.addEventListener('click', () => exportDatabase());
-    }
-    // Highlight color settings
-    const colorSwatches = document.getElementById('color-swatches');
-    const customColorInput = document.getElementById('custom-color-input');
-    const applyCustom = document.getElementById('apply-custom-color');
-    const transparentToggle = document.getElementById('transparent-highlight');
-    function setSelectedSwatch(color) {
-        const isTransparent = color === 'transparent';
-        if (colorSwatches) {
-            colorSwatches.querySelectorAll('.color-swatch').forEach((btn) => {
-                if (!isTransparent && btn.dataset.color && btn.dataset.color.toLowerCase() === (color || '').toLowerCase()) {
-                    btn.style.outline = '3px solid rgba(194,27,27,0.18)';
-                } else {
-                    btn.style.outline = 'none';
-                }
-            });
-        }
-        if (customColorInput && !isTransparent) customColorInput.value = color || '#fff59d';
-        if (transparentToggle) transparentToggle.checked = isTransparent;
-    }
-    if (colorSwatches) {
-        colorSwatches.addEventListener('click', (e) => {
-            const btn = e.target.closest('.color-swatch');
-            if (!btn) return;
-            const color = btn.dataset.color;
-            chrome.storage.local.set({ highlight_color: color }, () => {
-                setSelectedSwatch(color);
-                showSettingsFeedback('Highlight color saved.');
-            });
-        });
-    }
-    if (applyCustom && customColorInput) {
-        applyCustom.addEventListener('click', () => {
-            const color = customColorInput.value;
-            chrome.storage.local.set({ highlight_color: color }, () => {
-                setSelectedSwatch(color);
-                showSettingsFeedback('Highlight color saved.');
-            });
-        });
-    }
-    if (transparentToggle) {
-        transparentToggle.addEventListener('change', () => {
-            // Turning transparent off falls back to the chosen custom color (or default yellow).
-            const color = transparentToggle.checked
-                ? 'transparent'
-                : (customColorInput && customColorInput.value) || '#ffd54f';
-            chrome.storage.local.set({ highlight_color: color }, () => {
-                setSelectedSwatch(color);
-                showSettingsFeedback(transparentToggle.checked ? 'Highlights are now invisible on the page.' : 'Highlight color saved.');
-            });
-        });
-    }
-    // Initialize current highlight color UI
-    chrome.storage.local.get(['highlight_color'], (res) => {
-        const c = res.highlight_color || '#ffd54f';
-        setSelectedSwatch(c);
-    });
-    if (importDbBtn && importDbInput) {
-        importDbBtn.addEventListener('click', () => importDbInput.click());
-    }
-    if (importDbInput) {
-        importDbInput.addEventListener('change', (event) => {
-            const file = event.target.files?.[0];
-            if (file) {
-                importDatabaseFile(file);
-            }
-            event.target.value = '';
         });
     }
 
@@ -834,7 +729,9 @@ function renderAllQuotes() {
 
     currentPageType = 'all';
     currentListItems = sortedQuotes;
-    currentPage = 1;
+    // Do not reset currentPage here so actions (move/delete) keep the user on the
+    // same page; paginateItems() clamps it if the list shrank. Explicit navigation
+    // (tab switch, search, sort) resets the page on its own.
     renderQuoteCards(paginateItems(sortedQuotes));
     updatePager();
 }
@@ -846,7 +743,6 @@ function renderBySite() {
     const detail = document.getElementById('page-detail');
     if (detail) detail.style.display = 'none';
     if (container) container.style.display = 'block';
-    container.innerHTML = '';
 
     // Build list of pages (grouped by URL/title)
     const collectionNames = Object.keys(allCollections);
@@ -857,12 +753,12 @@ function renderBySite() {
         )
     ]);
 
-    currentPageType = 'none';
-    currentListItems = [];
     currentPageMeta = null;
 
     const filteredQuotes = allQuotes.filter((item) => quoteMatchesQuery(item.snippet, normalizeQuery(searchQuery)));
     if (filteredQuotes.length === 0) {
+        currentPageType = 'none';
+        currentListItems = [];
         container.innerHTML = '<p class="empty-msg">No saved quotes match your search.</p>';
         return;
     }
@@ -876,13 +772,18 @@ function renderBySite() {
         pages[key].items.push(item);
     });
 
-    const header = document.createElement('div');
-    header.id = 'page-count-header';
-    header.textContent = `${Object.keys(pages).length} Pages`;
-    container.appendChild(header);
+    const sortedGroups = sortPageGroups(Object.values(pages));
+    currentPageType = 'bySiteList';
+    currentListItems = sortedGroups;
+    renderBySiteList(paginateItems(sortedGroups));
+}
 
+function renderBySiteList(groups) {
+    const container = document.getElementById('by-site-list');
+    if (!container) return;
+    container.innerHTML = '';
     // Render each page as a card: title + count
-    sortPageGroups(Object.values(pages)).forEach((p) => {
+    groups.forEach((p) => {
         const card = document.createElement('div');
         card.className = 'page-item fade';
         card.innerHTML = `
@@ -1238,6 +1139,17 @@ function makeSnippetCard(snippet, index, fromCollection, allowLink = true, hideT
     tooltip.textContent = 'Copied!';
     card.appendChild(tooltip);
 
+    // Small red pen in the bottom-right marks quotes that have an annotation.
+    const hasAnnotation = typeof snippet === 'object' && snippet && String(snippet.annotation || '').trim();
+    if (hasAnnotation) {
+        const noteFlag = document.createElement('div');
+        noteFlag.className = 'card-annotation-flag';
+        noteFlag.title = 'Has annotation';
+        noteFlag.innerHTML = '<svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>';
+        noteFlag.style.cssText = 'position:absolute; right:8px; bottom:5px; color:#c21b1b; pointer-events:none; display:inline-flex; align-items:center; justify-content:center;';
+        card.appendChild(noteFlag);
+    }
+
     return card;
 }
 
@@ -1322,133 +1234,8 @@ function copyQuoteFullText(snippet) {
     showQuoteModalFeedback('Copied!');
 }
 
-function showSettingsFeedback(message) {
-    const feedback = document.getElementById('settings-feedback');
-    if (!feedback) return;
-    feedback.textContent = message;
-    feedback.style.opacity = '1';
-    clearTimeout(feedback.hideTimeout);
-    feedback.hideTimeout = setTimeout(() => {
-        feedback.style.opacity = '0';
-    }, 1800);
-}
-
-function exportDatabase() {
-    chrome.storage.local.get(['saved_snippets', 'collections'], (result) => {
-        const data = {
-            saved_snippets: result.saved_snippets || [],
-            collections: result.collections || {}
-        };
-        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
-        const link = document.createElement('a');
-        link.href = URL.createObjectURL(blob);
-        link.download = `highlighter-quotes-${new Date().toISOString().slice(0, 10)}.db`;
-        document.body.appendChild(link);
-        link.click();
-        URL.revokeObjectURL(link.href);
-        document.body.removeChild(link);
-        showSettingsFeedback('Export complete.');
-    });
-}
-
-function importDatabaseFile(file) {
-    const reader = new FileReader();
-    reader.onload = (event) => {
-        try {
-            const rawText = String(event.target?.result || '').replace(/^\uFEFF/, '');
-            const payload = JSON.parse(rawText);
-            mergeImportedDatabase(payload);
-        } catch (err) {
-            showSettingsFeedback('Import failed: invalid database file.');
-        }
-    };
-    reader.onerror = () => {
-        showSettingsFeedback('Import failed: unable to read file.');
-    };
-    reader.readAsText(file);
-}
-
-function mergeImportedDatabase(payload) {
-    const importedSnippets = Array.isArray(payload?.saved_snippets)
-        ? payload.saved_snippets
-        : Array.isArray(payload?.savedQuotes)
-            ? payload.savedQuotes
-            : Array.isArray(payload?.quotes)
-                ? payload.quotes
-                : Array.isArray(payload?.highlights)
-                    ? payload.highlights
-                    : Array.isArray(payload?.items)
-                        ? payload.items
-                        : Array.isArray(payload?.snippets)
-                            ? payload.snippets
-                            : Array.isArray(payload?.data)
-                                ? payload.data
-                                : Array.isArray(payload)
-                                    ? payload
-                                    : [];
-    const importedCollections = payload?.collections && typeof payload.collections === 'object'
-        ? payload.collections
-        : {};
-
-    if (!Array.isArray(importedSnippets)) {
-        showSettingsFeedback('Import failed: no valid quotes found.');
-        return;
-    }
-
-    chrome.storage.local.get(['saved_snippets', 'collections'], (result) => {
-        const existingSnippets = result.saved_snippets || [];
-        const existingCollections = result.collections || {};
-
-        const snippetKey = (snippet) => [snippet.text || '', snippet.url || '', snippet.title || '', snippet.savedAt || ''].join('||');
-        const existingKeys = new Set(existingSnippets.map(snippetKey));
-
-        const mergedSnippets = [...existingSnippets];
-        importedSnippets.forEach((snippet) => {
-            if (snippet && typeof snippet === 'object') {
-                if (!existingKeys.has(snippetKey(snippet))) {
-                    mergedSnippets.push({
-                        text: snippet.text || '',
-                        url: snippet.url || '',
-                        title: snippet.title || '',
-                        savedAt: snippet.savedAt || new Date().toISOString(),
-                        annotation: snippet.annotation || '',
-                        contextBefore: snippet.contextBefore || '',
-                        contextAfter: snippet.contextAfter || ''
-                    });
-                    existingKeys.add(snippetKey(snippet));
-                }
-            }
-        });
-
-        const mergedCollections = { ...existingCollections };
-        Object.entries(importedCollections).forEach(([collectionName, snippets]) => {
-            if (!Array.isArray(snippets)) return;
-            if (!Array.isArray(mergedCollections[collectionName])) {
-                mergedCollections[collectionName] = [];
-            }
-            const collectionKeys = new Set((mergedCollections[collectionName] || []).map(snippetKey));
-            snippets.forEach((snippet) => {
-                if (snippet && typeof snippet === 'object' && !collectionKeys.has(snippetKey(snippet))) {
-                    mergedCollections[collectionName].push({
-                        text: snippet.text || '',
-                        url: snippet.url || '',
-                        title: snippet.title || '',
-                        savedAt: snippet.savedAt || new Date().toISOString(),
-                        annotation: snippet.annotation || '',
-                        contextBefore: snippet.contextBefore || '',
-                        contextAfter: snippet.contextAfter || ''
-                    });
-                    collectionKeys.add(snippetKey(snippet));
-                }
-            });
-        });
-
-        chrome.storage.local.set({ saved_snippets: mergedSnippets, collections: mergedCollections }, () => {
-            showSettingsFeedback('Import complete.');
-            loadAll();
-        });
-    });
-}
+// Settings (export/import/sort/highlight color/reset) now live on settings.html /
+// settings.js, opened in their own tab so the import file picker works in Firefox.
 
 function wrapCanvasText(ctx, text, maxWidth) {
     const words = text.split(' ');
@@ -1600,10 +1387,11 @@ function setupQuoteModalAnnotation(snippet) {
     input.value = note;
 
     if (note) {
-        display.textContent = note;
-        display.style.display = 'block';
+        display.innerHTML = `<svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round" style="flex-shrink:0; margin-top:3px; color:#c21b1b;"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg><span>${escapeHtml(note)}</span>`;
+        display.style.display = 'flex';
         addBtn.style.display = 'none';
     } else {
+        display.innerHTML = '';
         display.style.display = 'none';
         addBtn.style.display = 'inline-flex';
     }

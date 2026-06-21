@@ -1,0 +1,106 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="utf-8">
+    <title>FireflyBook — Settings</title>
+    <style>
+        * { box-sizing: border-box; margin: 0; padding: 0; }
+        body {
+            font-family: Arial, sans-serif;
+            background: #f4f4f4;
+            color: #111;
+            padding: 40px 16px;
+            display: flex;
+            justify-content: center;
+        }
+        .wrap {
+            background: #fff;
+            width: 100%;
+            max-width: 480px;
+            border-radius: 14px;
+            padding: 28px;
+            box-shadow: 0 8px 30px rgba(0,0,0,0.12);
+        }
+        h1 {
+            font-family: Cambria, "Times New Roman", serif;
+            font-size: 22px;
+            color: #111;
+            margin-bottom: 6px;
+        }
+        .desc { font-size: 13px; color: #555; line-height: 1.5; margin-bottom: 20px; }
+        .label { font-size: 13px; color: #333; margin: 14px 0 6px 0; font-weight: 600; }
+        button { font-family: Arial, sans-serif; }
+        .btn-primary {
+            width: 100%; padding: 12px; background: #c21b1b; color: #fff; border: none;
+            border-radius: 10px; cursor: pointer; font-size: 14px; margin-bottom: 10px;
+        }
+        .btn-secondary {
+            width: 100%; padding: 12px; background: #fff; color: #111; border: 1px solid #c21b1b;
+            border-radius: 10px; cursor: pointer; font-size: 14px; margin-bottom: 10px;
+        }
+        .btn-secondary:hover, .btn-primary:hover { opacity: 0.92; }
+        select {
+            width: 100%; padding: 10px; border: 1px solid #d1d1d1; border-radius: 10px;
+            background: white; font-size: 13px; font-family: Arial, sans-serif;
+        }
+        #color-swatches { display: flex; flex-wrap: wrap; gap: 8px; }
+        .color-swatch { width: 34px; height: 34px; border-radius: 6px; border: 1px solid #ddd; cursor: pointer; }
+        .custom-row { display: flex; gap: 8px; align-items: center; margin-top: 10px; }
+        #custom-color-input { width: 44px; height: 34px; border-radius: 6px; border: 1px solid #d1d1d1; }
+        #apply-custom-color { padding: 8px 12px; border-radius: 8px; background: #f4f4f4; border: none; cursor: pointer; }
+        .check { display: flex; align-items: center; gap: 10px; font-size: 13px; color: #333; margin-top: 14px; cursor: pointer; }
+        .check input { width: 15px; height: 15px; accent-color: #c21b1b; }
+        #settings-feedback { font-size: 13px; color: #c21b1b; min-height: 20px; margin-top: 14px; opacity: 0; transition: opacity 140ms ease; }
+        #reset-data-btn {
+            width: 100%; padding: 12px; background: #fff; color: #c21b1b; border: 1px solid #c21b1b;
+            border-radius: 10px; cursor: pointer; font-size: 13px; margin-top: 6px;
+        }
+        hr { border: none; border-top: 1px solid #eee; margin: 22px 0; }
+    </style>
+</head>
+<body>
+    <div class="wrap">
+        <h1>Settings</h1>
+        <p class="desc">Export or import your saved quotes as a database file. Imported quotes are merged into your current library (duplicates are skipped).</p>
+
+        <button id="export-db-btn" class="btn-primary">Export database</button>
+        <button id="import-db-btn" class="btn-secondary">Import database</button>
+        <input id="import-db-input" type="file" accept=".db,.json,.txt,application/json,text/plain" style="display:none;" />
+
+        <hr />
+
+        <label for="sort-select" class="label">Sort order</label>
+        <select id="sort-select">
+            <option value="date">Date</option>
+            <option value="alpha">A–Z</option>
+        </select>
+
+        <div class="label">Highlight color</div>
+        <div id="color-swatches">
+            <button class="color-swatch" data-color="#e74c3c" title="Red" style="background:#e74c3c;"></button>
+            <button class="color-swatch" data-color="#3498db" title="Blue" style="background:#3498db;"></button>
+            <button class="color-swatch" data-color="#ffd54f" title="Yellow" style="background:#ffd54f;"></button>
+            <button class="color-swatch" data-color="#66bb6a" title="Green" style="background:#66bb6a;"></button>
+            <button class="color-swatch" data-color="#ff8a65" title="Orange" style="background:#ff8a65;"></button>
+            <button class="color-swatch" data-color="#f06292" title="Pink" style="background:#f06292;"></button>
+            <button class="color-swatch" data-color="#9575cd" title="Purple" style="background:#9575cd;"></button>
+            <button class="color-swatch" data-color="#ffffff" title="White" style="background:#ffffff;"></button>
+            <button class="color-swatch" data-color="#000000" title="Black" style="background:#000000;"></button>
+        </div>
+        <div class="custom-row">
+            <input id="custom-color-input" type="color" value="#ffd54f" />
+            <button id="apply-custom-color">Apply</button>
+        </div>
+        <label class="check">
+            <input type="checkbox" id="transparent-highlight" /> Transparent highlight (invisible on page)
+        </label>
+
+        <div id="settings-feedback"></div>
+
+        <hr />
+
+        <button id="reset-data-btn">Reset data (wipe all quotes &amp; collections)</button>
+    </div>
+    <script src="settings.js"></script>
+</body>
+</html>

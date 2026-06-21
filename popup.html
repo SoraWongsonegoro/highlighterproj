@@ -446,8 +446,8 @@
         <div class="tab" data-tab="collections">Collections</div>
         <input id="search-input" class="search-input" type="search" placeholder="Search..." aria-label="Search quotes" />
         <button id="select-mode-btn" class="settings-btn" title="Select quotes" style="font-size:13px; font-weight:500; min-width:64px; padding:0 10px; border-radius:8px;">Select</button>
-        <button id="settings-btn" class="settings-btn" title="Settings">⚙</button>
         <button id="info-btn" class="settings-btn" title="How to use">?</button>
+        <button id="settings-btn" class="settings-btn" title="Settings">⚙</button>
     </div>
 
     <!-- Page Container -->
@@ -500,43 +500,6 @@
         </div>
 
     </div>
-    <div id="settings-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1000; align-items:center; justify-content:center;">
-        <div style="background:white; border-radius:14px; padding:22px; width:460px; max-height:520px; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.18);">
-            <div style="font-size:16px; font-family:Cambria, 'Times New Roman', serif; font-weight:700; color:#111; margin-bottom:10px;">Settings</div>
-            <div style="font-size:13px; color:#333; line-height:1.5; margin-bottom:18px;">Export or import your saved quotes as a database file. Imported quotes will be merged into your current library.</div>
-            <button id="export-db-btn" style="width:100%; padding:11px; background:#c21b1b; color:#fff; border:none; border-radius:10px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif; margin-bottom:10px;">Export database</button>
-            <button id="import-db-btn" style="width:100%; padding:11px; background:#fff; color:#111; border:1px solid #c21b1b; border-radius:10px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif; margin-bottom:10px;">Import database</button>
-            <label for="sort-select" style="font-size:13px; color:#333; margin:0 0 6px 0;">Sort order</label>
-            <select id="sort-select" style="width:100%; padding:10px; border:1px solid #d1d1d1; border-radius:10px; background:white; font-size:13px; font-family:Arial,sans-serif; margin-bottom:10px;">
-                <option value="date">Date</option>
-                <option value="alpha">A–Z</option>
-            </select>
-            <div style="font-size:13px; color:#333; margin:6px 0 6px 0;">Highlight color</div>
-            <div id="color-swatches" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
-                <!-- Black/white-suitable palette: red, blue, yellow, green, orange, pink, purple, plus white/black -->
-                <button class="color-swatch" data-color="#e74c3c" title="Red" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#e74c3c;"></button>
-                <button class="color-swatch" data-color="#3498db" title="Blue" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#3498db;"></button>
-                <button class="color-swatch" data-color="#ffd54f" title="Yellow" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#ffd54f;"></button>
-                <button class="color-swatch" data-color="#66bb6a" title="Green" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#66bb6a;"></button>
-                <button class="color-swatch" data-color="#ff8a65" title="Orange" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#ff8a65;"></button>
-                <button class="color-swatch" data-color="#f06292" title="Pink" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#f06292;"></button>
-                <button class="color-swatch" data-color="#9575cd" title="Purple" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#9575cd;"></button>
-                <button class="color-swatch" data-color="#ffffff" title="White" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#ffffff;"></button>
-                <button class="color-swatch" data-color="#000000" title="Black" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#000000;"></button>
-            </div>
-            <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
-                <input id="custom-color-input" type="color" value="#ffd54f" style="width:44px; height:34px; border-radius:6px; border:1px solid #d1d1d1;" />
-                <button id="apply-custom-color" style="padding:8px; border-radius:8px; background:#f4f4f4; border:none; cursor:pointer;">Apply</button>
-            </div>
-            <label style="display:flex; align-items:center; gap:10px; font-size:13px; font-family:Arial,sans-serif; color:#333; margin-bottom:10px; cursor:pointer;">
-                <input type="checkbox" id="transparent-highlight" style="width:15px;height:15px;accent-color:#c21b1b;"> Transparent highlight (invisible on page)
-            </label>
-            <input id="import-db-input" type="file" accept=".json,.db" style="display:none;" />
-            <div id="settings-feedback" style="font-size:12px; color:#c21b1b; min-height:18px; margin-top:8px; opacity:0; transition:opacity 140ms ease;"></div>
-            <button id="reset-data-btn" style="margin-top:8px; width:100%; padding:11px; background:#fff; color:#c21b1b; border:1px solid #c21b1b; border-radius:10px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Reset data (wipe all quotes & collections)</button>
-            <button id="settings-modal-close" style="margin-top:10px; width:100%; padding:11px; background:#f4f4f4; border:none; border-radius:10px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Close</button>
-        </div>
-    </div>
     <div id="pager-row" style="display:none; align-items:center; justify-content:center; gap:12px; padding:8px 0 6px 0; border-top:1px solid #eee; margin-top:6px;">
         <button id="pager-prev" style="background:none;border:none;font-family:Arial,sans-serif;cursor:pointer">&lt;</button>
         <div id="pager-info" class="small-count"></div>
@@ -549,7 +512,7 @@
           <div id="quote-modal-scroll" style="flex:1 1 auto; min-height:0; overflow-y:auto;">
             <div id="quote-modal-combined" style="font-size:16px; color:#777; line-height:1.5; padding:8px 0; font-family:Cambria,'Times New Roman',serif; display:none; word-wrap:break-word;"></div>
             <div id="quote-modal-annotation-row" style="margin-top:2px;">
-                <div id="quote-modal-annotation-display" style="display:none; font-family:Cambria,'Times New Roman',serif; font-style:italic; color:#888; font-size:14px; line-height:1.5; word-wrap:break-word; cursor:text;"></div>
+                <div id="quote-modal-annotation-display" style="display:none; gap:7px; align-items:flex-start; font-family:Cambria,'Times New Roman',serif; font-style:italic; color:#444; font-size:15.5px; line-height:1.5; word-wrap:break-word; cursor:text;"></div>
                 <button id="quote-modal-annotation-add" type="button" style="display:inline-flex; align-items:center; gap:6px; background:none; border:none; color:#999; font-size:13px; cursor:pointer; padding:4px 0; font-family:Arial,sans-serif;">
                     <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M12 20h9"></path><path d="M16.5 3.5a2.121 2.121 0 0 1 3 3L7 19l-4 1 1-4 12.5-12.5z"></path></svg>
                     Add annotation

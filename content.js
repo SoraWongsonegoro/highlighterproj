@@ -167,9 +167,16 @@ document.addEventListener('mouseup', (e) => {
         const range = selection.getRangeAt(0);
         pendingRange = range.cloneRange();
 
-        const rect = range.getBoundingClientRect();
-        popupBtn.style.top = `${rect.top + window.scrollY - 35}px`;
-        popupBtn.style.left = `${rect.left + window.scrollX + (rect.width / 2) - 25}px`;
+        // Position the button just above where the cursor was released.
+        const BTN_SIZE = 42;
+        const GAP = 8;
+        let topPx = e.clientY - BTN_SIZE - GAP;
+        if (topPx < 0) topPx = e.clientY + GAP; // flip below if no room above
+        let leftPx = e.clientX - BTN_SIZE / 2;
+        leftPx = Math.max(2, Math.min(leftPx, window.innerWidth - BTN_SIZE - 2));
+
+        popupBtn.style.top = `${topPx + window.scrollY}px`;
+        popupBtn.style.left = `${leftPx + window.scrollX}px`;
         popupBtn.style.display = 'block';
     } else {
         popupBtn.style.display = 'none';
@@ -279,3 +286,142 @@ popupBtn.addEventListener('click', () => {
 
 
 );
+
+// --- Restore saved highlights on page load ---
+
+function normalizeWs(text) {
+    return (text || '').replace(/\s+/g, ' ').trim();
+}
+
+// Walk every visible text node and build a whitespace-normalized string plus a
+// per-character map back to the originating { node, offset } so a match in the
+// normalized string can be turned into a precise DOM Range.
+function buildTextIndex(root) {
+    const walker = document.createTreeWalker(root, NodeFilter.SHOW_TEXT, {
+        acceptNode(node) {
+            if (!node.nodeValue) return NodeFilter.FILTER_REJECT;
+            const parent = node.parentNode;
+            if (!parent) return NodeFilter.FILTER_REJECT;
+            const tag = parent.nodeName;
+            if (tag === 'SCRIPT' || tag === 'STYLE' || tag === 'NOSCRIPT') return NodeFilter.FILTER_REJECT;
+            return NodeFilter.FILTER_ACCEPT;
+        }
+    });
+
+    let norm = '';
+    const map = []; // map[i] -> { node, offset } for normalized char i
+    let prevWasSpace = false;
+    let node;
+    while ((node = walker.nextNode())) {
+        const text = node.nodeValue;
+        for (let i = 0; i < text.length; i++) {
+            const isSpace = /\s/.test(text[i]);
+            if (isSpace) {
+                if (prevWasSpace) continue;
+                norm += ' ';
+                map.push({ node, offset: i });
+                prevWasSpace = true;
+            } else {
+                norm += text[i];
+                map.push({ node, offset: i });
+                prevWasSpace = false;
+            }
+        }
+    }
+    return { norm, map };
+}
+
+// Locate one saved snippet on the page and re-wrap it. Returns true if it was
+// found (or already highlighted), false if the text isn't on the page yet.
+function highlightSavedSnippet(snippet) {
+    try {
+        const target = normalizeWs(snippet.text);
+        if (!target) return false;
+
+        const { norm, map } = buildTextIndex(document.body);
+        const before = normalizeWs(snippet.contextBefore);
+        const after = normalizeWs(snippet.contextAfter);
+
+        // Find the occurrence whose neighbouring text best matches the stored context.
+        let bestIdx = -1;
+        let bestScore = -1;
+        let from = 0;
+        while (true) {
+            const idx = norm.indexOf(target, from);
+            if (idx === -1) break;
+            const pre = norm.slice(0, idx).trimEnd();
+            const post = norm.slice(idx + target.length).trimStart();
+            let score = 0;
+            if (before && pre.endsWith(before)) score++;
+            if (after && post.startsWith(after)) score++;
+            if (score > bestScore) { bestScore = score; bestIdx = idx; }
+            if (score === 2) break; // perfect context match, stop early
+            from = idx + 1;
+        }
+        if (bestIdx === -1) return false;
+
+        const startInfo = map[bestIdx];
+        const endInfo = map[bestIdx + target.length - 1];
+        if (!startInfo || !endInfo) return false;
+
+        // Already wrapped by an earlier pass / live save — treat as done.
+        const startParent = startInfo.node.parentNode;
+        if (startParent && startParent.closest && startParent.closest('.ts-ext-highlight')) return true;
+
+        const range = document.createRange();
+        range.setStart(startInfo.node, startInfo.offset);
+        range.setEnd(endInfo.node, endInfo.offset + 1);
+        highlightRange(range);
+        return true;
+    } catch (e) {
+        return false;
+    }
+}
+
+let restorePending = null;
+
+function attemptRestore() {
+    if (!restorePending || restorePending.length === 0) return;
+    const stillPending = [];
+    restorePending.forEach((snippet) => {
+        if (!highlightSavedSnippet(snippet)) stillPending.push(snippet);
+    });
+    restorePending = stillPending;
+}
+
+function restoreHighlights() {
+    if (!isExtensionValid()) return;
+    try {
+        chrome.storage.local.get(['saved_snippets', 'collections'], (res) => {
+            if (chrome.runtime.lastError) return;
+            const url = window.location.href;
+            const candidates = [];
+            (res.saved_snippets || []).forEach((s) => candidates.push(s));
+            const collections = res.collections || {};
+            Object.values(collections).forEach((arr) => (arr || []).forEach((s) => candidates.push(s)));
+
+            // Keep only quotes from this exact page, de-duplicated by text + context.
+            const seen = new Set();
+            restorePending = [];
+            candidates.forEach((s) => {
+                if (!s || typeof s !== 'object' || s.url !== url || !s.text) return;
+                const key = `${s.text}|${s.contextBefore || ''}|${s.contextAfter || ''}`;
+                if (seen.has(key)) return;
+                seen.add(key);
+                restorePending.push(s);
+            });
+
+            attemptRestore();
+            // Retry once for content that renders slightly after load.
+            setTimeout(attemptRestore, 1200);
+        });
+    } catch (e) {
+        // extension context invalidated; ignore
+    }
+}
+
+if (document.readyState === 'loading') {
+    document.addEventListener('DOMContentLoaded', restoreHighlights);
+} else {
+    restoreHighlights();
+}
