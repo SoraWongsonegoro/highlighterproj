@@ -1,5 +1,3 @@
-console.log('content.js loaded');
-
 const popupBtn = document.createElement('button');
 popupBtn.className = 'ts-ext-save-btn';
 popupBtn.setAttribute('aria-label', 'Save highlight');
@@ -139,8 +137,6 @@ document.addEventListener('mousedown', (e) => {
 });
 
 document.addEventListener('keydown', (e) => {
-
-    console.log('keydown:', e.key, 'ctrl:', e.ctrlKey, 'shift:', e.shiftKey);
 
     if (e.ctrlKey && e.shiftKey && e.key.toLowerCase() === 's') {
         const selection = window.getSelection();
