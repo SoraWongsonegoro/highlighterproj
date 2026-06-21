@@ -94,8 +94,17 @@ function getQuoteContext(range) {
     try {
         let container = range.commonAncestorContainer;
         if (container.nodeType === Node.TEXT_NODE) container = container.parentNode;
+
+        // If the selection is inside a header/title element, don't capture context.
+        if (container.closest && container.closest('h1,h2,h3,h4,h5,h6,header')) {
+            return { before: '', after: '' };
+        }
+
+        // Only consider paragraph-like blocks for context (avoid generic divs)
         const block = (container.closest &&
-            container.closest('p, li, blockquote, article, section, td, dd, dt, div')) || container;
+            container.closest('p, li, blockquote, article, section, td, dd, dt')) || null;
+
+        if (!block) return { before: '', after: '' };
 
         const fullText = (block.textContent || '').replace(/\s+/g, ' ').trim();
         const selected = range.toString().replace(/\s+/g, ' ').trim();
@@ -108,8 +117,7 @@ function getQuoteContext(range) {
         const afterSlice = fullText.slice(idx + selected.length);
         let before = lastSentence(beforeSlice);
         let after = firstSentence(afterSlice);
-        // Preserve the whitespace that joined the context to the quote so it flows
-        // seamlessly without the modal having to inject its own spaces.
+        // Preserve whitespace joining context to the quote for smoother display.
         if (before && /\s$/.test(beforeSlice)) before += ' ';
         if (after && /^\s/.test(afterSlice)) after = ' ' + after;
         return { before, after };
