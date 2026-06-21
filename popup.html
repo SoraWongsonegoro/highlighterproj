@@ -213,7 +213,7 @@
         .snippet-list { margin-bottom: 8px; }
         .snippet-card {
             background: transparent;
-            padding: 9px 12px;
+            padding: 12px 12px;
             margin: 0;
             font-size: 15px;
             display: flex;
@@ -223,6 +223,7 @@
             border-bottom: 1px solid #dcdcdc;
             position: relative;
             padding-top: 14px;
+            padding-bottom: 14px;
             transition: background 120ms ease, color 120ms ease, transform 80ms ease;
             border-radius: 6px;
         }
@@ -236,16 +237,20 @@
             color: #fff;
         }
         .snippet-body { flex: 1; min-width: 0; }
-        .snippet-title { display:block; font-size:12px; font-weight:700; color:#111; font-family:Cambria, "Times New Roman", serif; margin-bottom:4px; }
-        .snippet-title[href] { text-decoration: underline; }
-        .snippet-text { word-wrap: break-word; color: #111; font-size:17px; line-height:1.28; font-family: Cambria, "Times New Roman", serif; margin-bottom:4px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
+        .snippet-title { display:block; font-size:12px; font-weight:400; color:#111; font-family:Cambria, "Times New Roman", serif; margin-bottom:8px; }
+        .snippet-text { word-wrap: break-word; color: #111; font-size:17px; line-height:1.28; font-family: Cambria, "Times New Roman", serif; margin-top:14px; margin-bottom:10px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
         .search-highlight { background: #fff09e; color: #111; padding: 0 2px; border-radius: 2px; }
         .snippet-source { display:block; font-size:11px; color:#666; font-family:Arial, sans-serif; }
+
+        /* Remove underlines globally and style title links on hover */
+        a { text-decoration: none; color: inherit; }
+        .title-link { text-decoration: none; color: inherit; }
+        .title-link:hover { color: #c21b1b; }
 
         /* Small icon actions in upper-right of each snippet card - hidden until hover */
         .card-actions {
             position: absolute;
-            top: 6px;
+            top: 12px;
             right: 6px;
             display: flex;
             gap: 6px;
@@ -273,7 +278,7 @@
         .icon-btn svg { width: 16px; height: 16px; }
         .copy-tooltip {
             position: absolute;
-            top: 6px;
+            top: 12px;
             right: 60px;
             background: rgba(255,255,255,0.95);
             color: #111;
@@ -490,6 +495,23 @@
                 <option value="date">Date</option>
                 <option value="alpha">A–Z</option>
             </select>
+            <div style="font-size:13px; color:#333; margin:6px 0 6px 0;">Highlight color</div>
+            <div id="color-swatches" style="display:flex; flex-wrap:wrap; gap:8px; margin-bottom:10px;">
+                <!-- Black/white-suitable palette: red, blue, yellow, green, orange, pink, purple, plus white/black -->
+                <button class="color-swatch" data-color="#e74c3c" title="Red" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#e74c3c;"></button>
+                <button class="color-swatch" data-color="#3498db" title="Blue" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#3498db;"></button>
+                <button class="color-swatch" data-color="#ffd54f" title="Yellow" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#ffd54f;"></button>
+                <button class="color-swatch" data-color="#66bb6a" title="Green" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#66bb6a;"></button>
+                <button class="color-swatch" data-color="#ff8a65" title="Orange" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#ff8a65;"></button>
+                <button class="color-swatch" data-color="#f06292" title="Pink" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#f06292;"></button>
+                <button class="color-swatch" data-color="#9575cd" title="Purple" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#9575cd;"></button>
+                <button class="color-swatch" data-color="#ffffff" title="White" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#ffffff;"></button>
+                <button class="color-swatch" data-color="#000000" title="Black" style="width:34px;height:34px;border-radius:6px;border:1px solid #ddd;background:#000000;"></button>
+            </div>
+            <div style="display:flex; gap:8px; align-items:center; margin-bottom:8px;">
+                <input id="custom-color-input" type="color" value="#ffd54f" style="width:44px; height:34px; border-radius:6px; border:1px solid #d1d1d1;" />
+                <button id="apply-custom-color" style="padding:8px; border-radius:8px; background:#f4f4f4; border:none; cursor:pointer;">Apply</button>
+            </div>
             <input id="import-db-input" type="file" accept=".json,.db" style="display:none;" />
             <div id="settings-feedback" style="font-size:12px; color:#c21b1b; min-height:18px; margin-top:8px; opacity:0; transition:opacity 140ms ease;"></div>
             <button id="settings-modal-close" style="margin-top:18px; width:100%; padding:11px; background:#f4f4f4; border:none; border-radius:10px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Close</button>
@@ -506,7 +528,7 @@
         <div style="background:white; border-radius:12px; padding:22px; width:420px; max-height:480px; display:flex; flex-direction:column; box-shadow:0 4px 20px rgba(0,0,0,0.2); position:relative;">
             <div id="quote-modal-combined" style="font-size:16px; color:#777; line-height:1.5; padding:8px 0; font-family:Cambria,'Times New Roman',serif; display:none; word-wrap:break-word;"></div>
             <div id="quote-modal-saved-at" style="font-size:12px; color:#666; margin-top:10px; font-family:Arial,sans-serif; display:none;"></div>
-            <a id="quote-modal-source" target="_blank" style="font-size:11px; color:#666; font-family:Arial,sans-serif; margin-top:8px; display:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-decoration:none;"></a>
+            <a id="quote-modal-source" class="title-link" target="_blank" style="font-size:11px; color:#666; font-family:Arial,sans-serif; margin-top:8px; display:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></a>
             <div style="display:flex; gap:0; margin-top:12px;">
                 <button id="quote-modal-copy" style="flex:1; padding:8px; background:#111; color:#fff; border:none; border-radius:6px 0 0 6px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Copy full text</button>
                 <button id="quote-modal-png" style="flex:1; padding:8px; background:#fff; color:#111; border:1px solid #ccc; border-radius:0 6px 6px 0; border-left:none; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Save as PNG</button>

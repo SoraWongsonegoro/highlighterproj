@@ -364,6 +364,46 @@ function initUI() {
     if (exportDbBtn) {
         exportDbBtn.addEventListener('click', () => exportDatabase());
     }
+    // Highlight color settings
+    const colorSwatches = document.getElementById('color-swatches');
+    const customColorInput = document.getElementById('custom-color-input');
+    const applyCustom = document.getElementById('apply-custom-color');
+    function setSelectedSwatch(color) {
+        if (!colorSwatches) return;
+        colorSwatches.querySelectorAll('.color-swatch').forEach((btn) => {
+            if (btn.dataset.color && btn.dataset.color.toLowerCase() === (color || '').toLowerCase()) {
+                btn.style.outline = '3px solid rgba(194,27,27,0.18)';
+            } else {
+                btn.style.outline = 'none';
+            }
+        });
+        if (customColorInput) customColorInput.value = color || '#fff59d';
+    }
+    if (colorSwatches) {
+        colorSwatches.addEventListener('click', (e) => {
+            const btn = e.target.closest('.color-swatch');
+            if (!btn) return;
+            const color = btn.dataset.color;
+            chrome.storage.local.set({ highlight_color: color }, () => {
+                setSelectedSwatch(color);
+                showSettingsFeedback('Highlight color saved.');
+            });
+        });
+    }
+    if (applyCustom && customColorInput) {
+        applyCustom.addEventListener('click', () => {
+            const color = customColorInput.value;
+            chrome.storage.local.set({ highlight_color: color }, () => {
+                setSelectedSwatch(color);
+                showSettingsFeedback('Highlight color saved.');
+            });
+        });
+    }
+    // Initialize current highlight color UI
+    chrome.storage.local.get(['highlight_color'], (res) => {
+        const c = res.highlight_color || '#ffd54f';
+        setSelectedSwatch(c);
+    });
     if (importDbBtn && importDbInput) {
         importDbBtn.addEventListener('click', () => importDbInput.click());
     }
@@ -500,13 +540,14 @@ function openPageDetail(url, title, items) {
     detail.style.display = 'flex';
     detailTitle.innerHTML = '';
     const titleLink = document.createElement('a');
+    titleLink.className = 'title-link';
     titleLink.href = url || '#';
     titleLink.target = '_blank';
     titleLink.rel = 'noopener';
     titleLink.textContent = `${items.length} Highlights in ${title}`;
+    // make page title link less prominent (unbolded); CSS handles hover color
     titleLink.style.color = '#111';
-    titleLink.style.textDecoration = 'none';
-    titleLink.style.fontWeight = '700';
+    titleLink.style.fontWeight = '400';
     detailTitle.appendChild(titleLink);
 
     renderPageDetailList(paginateItems(items));
@@ -707,7 +748,7 @@ function makeSnippetCard(snippet, index, fromCollection, allowLink = true, hideT
             // show small title above the snippet text (site/title) as a clickable header
             const titleEl = document.createElement('a');
             titleEl.addEventListener('click', (e) => e.stopPropagation());
-            titleEl.className = 'snippet-title';
+                titleEl.className = 'snippet-title title-link';
             let hostLabel = snippetTitle;
             if (!hostLabel) {
                 try {

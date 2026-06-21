@@ -10,6 +10,55 @@ popupBtn.innerHTML = `
 document.body.appendChild(popupBtn);
 
 let pendingRange = null;
+let highlightColor = '#ffd54f'; // default soft yellow
+
+function hexToLuma(hex) {
+    if (!hex) return 1;
+    const h = hex.replace('#', '');
+    const bigint = parseInt(h.length === 3 ? h.split('').map(c => c + c).join('') : h, 16);
+    const r = (bigint >> 16) & 255;
+    const g = (bigint >> 8) & 255;
+    const b = bigint & 255;
+    // relative luminance
+    return (0.2126 * r + 0.7152 * g + 0.0722 * b) / 255;
+}
+
+function getContrastColor(hex) {
+    const luma = hexToLuma(hex || '#ffffff');
+    return luma > 0.6 ? '#000000' : '#ffffff';
+}
+
+function updateExistingHighlights(color) {
+    try {
+        const nodes = document.querySelectorAll('.ts-ext-highlight');
+        nodes.forEach((el) => {
+            el.style.backgroundColor = color;
+            el.style.color = getContrastColor(color);
+            el.style.padding = '0 0.1em';
+            el.style.borderRadius = '2px';
+        });
+    } catch (e) {
+        // ignore
+    }
+}
+
+// Load configured highlight color and apply to existing highlights
+try {
+    chrome.storage.local.get(['highlight_color'], (res) => {
+        if (res && res.highlight_color) {
+            highlightColor = res.highlight_color;
+        }
+        updateExistingHighlights(highlightColor);
+    });
+    chrome.storage.onChanged.addListener((changes, area) => {
+        if (area === 'local' && changes.highlight_color) {
+            highlightColor = changes.highlight_color.newValue;
+            updateExistingHighlights(highlightColor);
+        }
+    });
+} catch (e) {
+    // ignore in page context if chrome storage unavailable
+}
 
 function isExtensionValid() {
     try {
@@ -48,6 +97,15 @@ function highlightRange(range) {
 
         const highlight = document.createElement('mark');
         highlight.className = 'ts-ext-highlight';
+        // apply configured highlight color
+        try {
+            highlight.style.backgroundColor = highlightColor;
+            highlight.style.color = getContrastColor(highlightColor);
+            highlight.style.padding = '0 0.1em';
+            highlight.style.borderRadius = '2px';
+        } catch (e) {
+            // ignore styling errors
+        }
         nodeRange.surroundContents(highlight);
     });
 }
