@@ -12,15 +12,20 @@
         "matches": ["<all_urls>"]
     }
   ],
+  "icons": {
+    "16": "images/firefly_icon.PNG",
+    "32": "images/firefly_icon.PNG",
+    "48": "images/firefly_icon.PNG",
+    "128": "images/firefly_icon.PNG"
+  },
   "action": {
     "default_popup": "popup.html",
     "default_title": "View Saved Snippets",
-    "default_icon": "images/firefly_icon.png", 
-    "icons": {
-    "16": "images/firefly_icon.png",
-    "32": "images/firefly_icon.png",
-    "48": "images/firefly_icon.png",
-    "128": "images/firefly_icon.png"
+    "default_icon": {
+      "16": "images/firefly_icon.PNG",
+      "32": "images/firefly_icon.PNG",
+      "48": "images/firefly_icon.PNG",
+      "128": "images/firefly_icon.PNG"
     }
   },
   "content_scripts": [
