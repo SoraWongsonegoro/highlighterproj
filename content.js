@@ -28,15 +28,25 @@ function getContrastColor(hex) {
     return luma > 0.6 ? '#000000' : '#ffffff';
 }
 
+function applyHighlightStyle(el, color) {
+    // 'transparent' = invisible highlight: keep the text styling untouched.
+    if (color === 'transparent' || color === 'none') {
+        el.style.backgroundColor = 'transparent';
+        el.style.color = 'inherit';
+        el.style.padding = '0';
+        el.style.borderRadius = '0';
+        return;
+    }
+    el.style.backgroundColor = color;
+    el.style.color = getContrastColor(color);
+    el.style.padding = '0 0.1em';
+    el.style.borderRadius = '2px';
+}
+
 function updateExistingHighlights(color) {
     try {
         const nodes = document.querySelectorAll('.ts-ext-highlight');
-        nodes.forEach((el) => {
-            el.style.backgroundColor = color;
-            el.style.color = getContrastColor(color);
-            el.style.padding = '0 0.1em';
-            el.style.borderRadius = '2px';
-        });
+        nodes.forEach((el) => applyHighlightStyle(el, color));
     } catch (e) {
         // ignore
     }
@@ -65,6 +75,46 @@ function isExtensionValid() {
         return !!chrome.runtime?.id;
     } catch (e) {
         return false;
+    }
+}
+
+function lastSentence(text) {
+    const parts = (text || '').split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+    return parts.length ? parts[parts.length - 1] : '';
+}
+
+function firstSentence(text) {
+    const parts = (text || '').split(/(?<=[.!?])\s+/).map((s) => s.trim()).filter(Boolean);
+    return parts.length ? parts[0] : '';
+}
+
+// Extract the sentence immediately before and after the selected quote, using the
+// surrounding block element as the source of context.
+function getQuoteContext(range) {
+    try {
+        let container = range.commonAncestorContainer;
+        if (container.nodeType === Node.TEXT_NODE) container = container.parentNode;
+        const block = (container.closest &&
+            container.closest('p, li, blockquote, article, section, td, dd, dt, div')) || container;
+
+        const fullText = (block.textContent || '').replace(/\s+/g, ' ').trim();
+        const selected = range.toString().replace(/\s+/g, ' ').trim();
+        if (!fullText || !selected) return { before: '', after: '' };
+
+        const idx = fullText.indexOf(selected);
+        if (idx === -1) return { before: '', after: '' };
+
+        const beforeSlice = fullText.slice(0, idx);
+        const afterSlice = fullText.slice(idx + selected.length);
+        let before = lastSentence(beforeSlice);
+        let after = firstSentence(afterSlice);
+        // Preserve the whitespace that joined the context to the quote so it flows
+        // seamlessly without the modal having to inject its own spaces.
+        if (before && /\s$/.test(beforeSlice)) before += ' ';
+        if (after && /^\s/.test(afterSlice)) after = ' ' + after;
+        return { before, after };
+    } catch (e) {
+        return { before: '', after: '' };
     }
 }
 
@@ -99,10 +149,7 @@ function highlightRange(range) {
         highlight.className = 'ts-ext-highlight';
         // apply configured highlight color
         try {
-            highlight.style.backgroundColor = highlightColor;
-            highlight.style.color = getContrastColor(highlightColor);
-            highlight.style.padding = '0 0.1em';
-            highlight.style.borderRadius = '2px';
+            applyHighlightStyle(highlight, highlightColor);
         } catch (e) {
             // ignore styling errors
         }
@@ -146,6 +193,7 @@ document.addEventListener('keydown', (e) => {
         e.preventDefault();
 
         const range = selection.getRangeAt(0);
+        const context = getQuoteContext(range);
         highlightRange(range);
         selection.removeAllRanges();
         popupBtn.style.display = 'none';
@@ -164,7 +212,9 @@ document.addEventListener('keydown', (e) => {
                     text: selectedText,
                     title: document.title || 'Untitled Page',
                     url: window.location.href,
-                    savedAt: new Date().toISOString()
+                    savedAt: new Date().toISOString(),
+                    contextBefore: context.before,
+                    contextAfter: context.after
                 });
                 chrome.storage.local.set({ saved_snippets: snippets }, () => {
                     if (chrome.runtime.lastError) {
@@ -188,6 +238,8 @@ popupBtn.addEventListener('click', () => {
     const selectedText = pendingRange.toString().trim();
     if (!selectedText) return;
 
+    const context = getQuoteContext(pendingRange);
+
     highlightRange(pendingRange);
 
     pendingRange = null;
@@ -206,7 +258,9 @@ popupBtn.addEventListener('click', () => {
                 text: selectedText,
                 title: document.title || 'Untitled Page',
                 url: window.location.href,
-                savedAt: new Date().toISOString()
+                savedAt: new Date().toISOString(),
+                contextBefore: context.before,
+                contextAfter: context.after
             };
 
             snippets.push(newSnippet);

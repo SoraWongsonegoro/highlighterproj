@@ -7,7 +7,7 @@
 
         /* Primary font is Cambria, small numeric/text UI uses Arial */
         body {
-            width: 560px;
+            width: 600px;
             height: 560px;
             font-family: Cambria, "Times New Roman", serif;
             background: #ffffff;
@@ -21,7 +21,7 @@
         /* --- Tab Bar --- */
         #tab-bar {
             display: flex;
-            gap: 18px;
+            gap: 10px;
             padding: 6px 0 12px 0;
             align-items: center;
             border-bottom: 1px solid #e6e6e6;
@@ -35,6 +35,7 @@
             font-family: Cambria, "Times New Roman", serif;
             user-select: none;
             border-radius: 3px;
+            white-space: nowrap;
         }
         .tab.active {
             background: #c21b1b;
@@ -44,7 +45,7 @@
         }
         .search-input {
             flex: 1;
-            min-width: 140px;
+            min-width: 110px;
             max-width: 220px;
             padding: 6px 10px;
             border: 1px solid #d1d1d1;
@@ -64,7 +65,7 @@
             width: 34px;
             height: 34px;
             border: none;
-            border-radius: 10px;
+            border-radius: 50%;
             background: #f4f4f4;
             cursor: pointer;
             display: inline-flex;
@@ -72,6 +73,7 @@
             justify-content: center;
             color: #111;
             font-size: 16px;
+            font-family: Arial, sans-serif;
         }
         .settings-btn:hover {
             background: #eaeaea;
@@ -235,8 +237,13 @@
 
         /* Remove underlines globally and style title links on hover */
         a { text-decoration: none; color: inherit; }
-        .title-link { text-decoration: none; color: inherit; }
-        .title-link:hover { color: #c21b1b; }
+        .title-link { text-decoration: none; color: inherit; transition: color 120ms ease, text-shadow 120ms ease; }
+        /* Clickable links glow red on hover */
+        a[href]:hover, .title-link:hover {
+            color: #c21b1b;
+            text-shadow: 0 0 6px rgba(194,27,27,0.65);
+            cursor: pointer;
+        }
 
         /* Small icon actions in upper-right of each snippet card - hidden until hover */
         .card-actions {
@@ -366,9 +373,10 @@
             display: flex;
             justify-content: space-between;
             align-items: center;
-            padding: 10px 0;
+            padding: 10px 14px;
             border-bottom: 1px solid #dadada;
             background: transparent;
+            border-radius: 8px;
         }
         .page-item:hover { background: #c21b1b; color: #fff; }
         .page-item:hover .title, .page-item:hover .count { color: #fff; }
@@ -437,7 +445,7 @@
         <div class="tab" data-tab="by-site">Quotes by Page</div>
         <div class="tab" data-tab="collections">Collections</div>
         <input id="search-input" class="search-input" type="search" placeholder="Search..." aria-label="Search quotes" />
-        <button id="select-mode-btn" class="settings-btn" title="Select quotes" style="font-size:13px; font-weight:500; min-width:64px; padding:0 10px;">Select</button>
+        <button id="select-mode-btn" class="settings-btn" title="Select quotes" style="font-size:13px; font-weight:500; min-width:64px; padding:0 10px; border-radius:8px;">Select</button>
         <button id="settings-btn" class="settings-btn" title="Settings">⚙</button>
         <button id="info-btn" class="settings-btn" title="How to use">?</button>
     </div>
@@ -520,6 +528,9 @@
                 <input id="custom-color-input" type="color" value="#ffd54f" style="width:44px; height:34px; border-radius:6px; border:1px solid #d1d1d1;" />
                 <button id="apply-custom-color" style="padding:8px; border-radius:8px; background:#f4f4f4; border:none; cursor:pointer;">Apply</button>
             </div>
+            <label style="display:flex; align-items:center; gap:10px; font-size:13px; font-family:Arial,sans-serif; color:#333; margin-bottom:10px; cursor:pointer;">
+                <input type="checkbox" id="transparent-highlight" style="width:15px;height:15px;accent-color:#c21b1b;"> Transparent highlight (invisible on page)
+            </label>
             <input id="import-db-input" type="file" accept=".json,.db" style="display:none;" />
             <div id="settings-feedback" style="font-size:12px; color:#c21b1b; min-height:18px; margin-top:8px; opacity:0; transition:opacity 140ms ease;"></div>
             <button id="reset-data-btn" style="margin-top:8px; width:100%; padding:11px; background:#fff; color:#c21b1b; border:1px solid #c21b1b; border-radius:10px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Reset data (wipe all quotes & collections)</button>
@@ -535,6 +546,7 @@
     <!-- Quote Detail Modal -->
     <div id="quote-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:999; align-items:center; justify-content:center;">
         <div style="background:white; border-radius:12px; padding:22px; width:420px; max-height:480px; display:flex; flex-direction:column; box-shadow:0 4px 20px rgba(0,0,0,0.2); position:relative;">
+          <div id="quote-modal-scroll" style="flex:1 1 auto; min-height:0; overflow-y:auto;">
             <div id="quote-modal-combined" style="font-size:16px; color:#777; line-height:1.5; padding:8px 0; font-family:Cambria,'Times New Roman',serif; display:none; word-wrap:break-word;"></div>
             <div id="quote-modal-annotation-row" style="margin-top:2px;">
                 <div id="quote-modal-annotation-display" style="display:none; font-family:Cambria,'Times New Roman',serif; font-style:italic; color:#888; font-size:14px; line-height:1.5; word-wrap:break-word; cursor:text;"></div>
@@ -546,8 +558,9 @@
             </div>
             <div id="quote-modal-saved-at" style="font-size:12px; color:#666; margin-top:10px; font-family:Arial,sans-serif; display:none;"></div>
             <a id="quote-modal-source" class="title-link" target="_blank" style="font-size:11px; color:#666; font-family:Arial,sans-serif; margin-top:8px; display:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis;"></a>
+          </div>
             <div style="display:flex; gap:0; margin-top:12px;">
-                <button id="quote-modal-copy" style="flex:1; padding:8px; background:#111; color:#fff; border:none; border-radius:6px 0 0 6px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Copy full text</button>
+                <button id="quote-modal-copy" style="flex:1; padding:8px; background:#111; color:#fff; border:none; border-radius:6px 0 0 6px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Copy highlight</button>
                 <button id="quote-modal-png" style="flex:1; padding:8px; background:#fff; color:#111; border:1px solid #ccc; border-radius:0 6px 6px 0; border-left:none; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Save as PNG</button>
             </div>
             <div id="quote-modal-tooltip" style="position:absolute; bottom:24px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.85); color:#fff; border-radius:8px; padding:6px 12px; font-size:11px; font-family:Arial,sans-serif; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity 140ms ease; z-index:1001;"></div>
@@ -565,13 +578,13 @@
     </div>
 
     <!-- Selection Hotbar -->
-    <div id="selection-hotbar" style="display:none; position:fixed; bottom:0; left:0; right:0; background:#1a1a1a; padding:10px 14px; z-index:1100; align-items:center; gap:8px; border-top:none;">
+    <div id="selection-hotbar" style="display:none; position:fixed; bottom:0; left:0; right:0; background:#c21b1b; padding:10px 14px; z-index:1100; align-items:center; gap:8px; border-top:none;">
         <span id="hotbar-count" style="color:#fff; font-size:13px; font-weight:500; flex:1; font-family:Arial,sans-serif;">0 selected</span>
         <button id="hotbar-select-all" style="background:rgba(255,255,255,0.13); color:#fff; border:none; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; font-family:Arial,sans-serif;">Select all</button>
         <button id="hotbar-move" style="background:rgba(255,255,255,0.13); color:#fff; border:none; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; font-family:Arial,sans-serif;">Move</button>
-        <button id="hotbar-export" style="background:rgba(255,255,255,0.13); color:#fff; border:none; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; font-family:Arial,sans-serif;">Export</button>
+        <button id="hotbar-export" style="background:rgba(255,255,255,0.13); color:#fff; border:none; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; font-family:Arial,sans-serif;">Save</button>
         <button id="hotbar-copy" style="background:rgba(255,255,255,0.13); color:#fff; border:none; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; font-family:Arial,sans-serif;">Copy</button>
-        <button id="hotbar-delete" style="background:rgba(200,30,30,0.7); color:#fff; border:none; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; font-family:Arial,sans-serif;">Delete</button>
+        <button id="hotbar-delete" style="background:#111; color:#fff; border:none; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; font-family:Arial,sans-serif;">Delete</button>
     </div>
 
     <!-- Copy Options Modal -->

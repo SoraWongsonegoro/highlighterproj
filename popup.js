@@ -335,11 +335,11 @@ function deleteSelected() {
 function exportSelected() {
     const items = getSelectedItemObjects();
     if (items.length === 0) return;
-    const snippets = items.map(({ snippet }) => snippet);
-    const blob = new Blob([JSON.stringify({ saved_snippets: snippets }, null, 2)], { type: 'application/json' });
+    const text = items.map(({ snippet }) => getQuoteModalText(snippet)).join('\n\n');
+    const blob = new Blob([text], { type: 'text/plain' });
     const link = document.createElement('a');
     link.href = URL.createObjectURL(blob);
-    link.download = `highlighter-export-${new Date().toISOString().slice(0, 10)}.db`;
+    link.download = `quotes-${new Date().toISOString().slice(0, 10)}.txt`;
     document.body.appendChild(link);
     link.click();
     URL.revokeObjectURL(link.href);
@@ -650,16 +650,20 @@ function initUI() {
     const colorSwatches = document.getElementById('color-swatches');
     const customColorInput = document.getElementById('custom-color-input');
     const applyCustom = document.getElementById('apply-custom-color');
+    const transparentToggle = document.getElementById('transparent-highlight');
     function setSelectedSwatch(color) {
-        if (!colorSwatches) return;
-        colorSwatches.querySelectorAll('.color-swatch').forEach((btn) => {
-            if (btn.dataset.color && btn.dataset.color.toLowerCase() === (color || '').toLowerCase()) {
-                btn.style.outline = '3px solid rgba(194,27,27,0.18)';
-            } else {
-                btn.style.outline = 'none';
-            }
-        });
-        if (customColorInput) customColorInput.value = color || '#fff59d';
+        const isTransparent = color === 'transparent';
+        if (colorSwatches) {
+            colorSwatches.querySelectorAll('.color-swatch').forEach((btn) => {
+                if (!isTransparent && btn.dataset.color && btn.dataset.color.toLowerCase() === (color || '').toLowerCase()) {
+                    btn.style.outline = '3px solid rgba(194,27,27,0.18)';
+                } else {
+                    btn.style.outline = 'none';
+                }
+            });
+        }
+        if (customColorInput && !isTransparent) customColorInput.value = color || '#fff59d';
+        if (transparentToggle) transparentToggle.checked = isTransparent;
     }
     if (colorSwatches) {
         colorSwatches.addEventListener('click', (e) => {
@@ -678,6 +682,18 @@ function initUI() {
             chrome.storage.local.set({ highlight_color: color }, () => {
                 setSelectedSwatch(color);
                 showSettingsFeedback('Highlight color saved.');
+            });
+        });
+    }
+    if (transparentToggle) {
+        transparentToggle.addEventListener('change', () => {
+            // Turning transparent off falls back to the chosen custom color (or default yellow).
+            const color = transparentToggle.checked
+                ? 'transparent'
+                : (customColorInput && customColorInput.value) || '#ffd54f';
+            chrome.storage.local.set({ highlight_color: color }, () => {
+                setSelectedSwatch(color);
+                showSettingsFeedback(transparentToggle.checked ? 'Highlights are now invisible on the page.' : 'Highlight color saved.');
             });
         });
     }
@@ -1257,8 +1273,9 @@ function getQuoteModalText(snippet) {
     const url = typeof snippet === 'object' ? snippet.url : '';
     const title = typeof snippet === 'object' ? snippet.title : '';
     const savedAt = typeof snippet === 'object' ? snippet.savedAt : null;
+    const annotation = typeof snippet === 'object' ? snippet.annotation : '';
     const dateLabel = savedAt ? new Date(savedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
-    const lines = [`"${text}"`, '', title ? `Source: ${title}` : null, url ? `URL: ${url}` : null, dateLabel ? `Saved: ${dateLabel}` : null].filter(Boolean);
+    const lines = [`"${text}"`, annotation ? `Note: ${annotation}` : null, '', title ? `Source: ${title}` : null, url ? `URL: ${url}` : null, dateLabel ? `Saved: ${dateLabel}` : null].filter(Boolean);
     return lines.join('\n');
 }
 
@@ -1393,7 +1410,10 @@ function mergeImportedDatabase(payload) {
                         text: snippet.text || '',
                         url: snippet.url || '',
                         title: snippet.title || '',
-                        savedAt: snippet.savedAt || new Date().toISOString()
+                        savedAt: snippet.savedAt || new Date().toISOString(),
+                        annotation: snippet.annotation || '',
+                        contextBefore: snippet.contextBefore || '',
+                        contextAfter: snippet.contextAfter || ''
                     });
                     existingKeys.add(snippetKey(snippet));
                 }
@@ -1413,7 +1433,10 @@ function mergeImportedDatabase(payload) {
                         text: snippet.text || '',
                         url: snippet.url || '',
                         title: snippet.title || '',
-                        savedAt: snippet.savedAt || new Date().toISOString()
+                        savedAt: snippet.savedAt || new Date().toISOString(),
+                        annotation: snippet.annotation || '',
+                        contextBefore: snippet.contextBefore || '',
+                        contextAfter: snippet.contextAfter || ''
                     });
                     collectionKeys.add(snippetKey(snippet));
                 }
@@ -1525,7 +1548,9 @@ function openQuoteModal(snippet) {
 
     const combinedEl = document.getElementById('quote-modal-combined');
     if (combinedEl) {
-        combinedEl.innerHTML = `<strong style="color:#111;font-weight:700;">${escapeHtml(text)}</strong>`;
+        const beforeRaw = typeof snippet === 'object' && snippet.contextBefore ? snippet.contextBefore : '';
+        const afterRaw = typeof snippet === 'object' && snippet.contextAfter ? snippet.contextAfter : '';
+        combinedEl.innerHTML = `${escapeHtml(beforeRaw)}<strong style="color:#111;font-weight:700;">${escapeHtml(text)}</strong>${escapeHtml(afterRaw)}`;
         combinedEl.style.display = 'block';
     }
 
