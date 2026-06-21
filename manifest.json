@@ -14,7 +14,14 @@
   ],
   "action": {
     "default_popup": "popup.html",
-    "default_title": "View Saved Snippets"
+    "default_title": "View Saved Snippets",
+    "default_icon": "images/firefly_icon.png", 
+    "icons": {
+    "16": "images/firefly_icon.png",
+    "32": "images/firefly_icon.png",
+    "48": "images/firefly_icon.png",
+    "128": "images/firefly_icon.png"
+    }
   },
   "content_scripts": [
     {
