@@ -6,6 +6,12 @@
   "permissions": [
     "storage"
   ],
+  "web_accessible_resources": [
+    {
+        "resources": ["images/*"],
+        "matches": ["<all_urls>"]
+    }
+  ],
   "action": {
     "default_popup": "popup.html",
     "default_title": "View Saved Snippets"

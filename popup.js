@@ -256,10 +256,8 @@ function updateHotbar() {
 function toggleItemSelection(key) {
     if (selectedItems.has(key)) selectedItems.delete(key);
     else selectedItems.add(key);
+    syncCheckboxes();
     updateHotbar();
-    // update just the checkbox visual without full re-render
-    const cb = document.querySelector(`[data-sel-key="${CSS.escape(key)}"]`);
-    if (cb) cb.checked = selectedItems.has(key);
 }
 
 function selectAllVisible() {
@@ -267,15 +265,12 @@ function selectAllVisible() {
         getItemKey(snippet, index, fromCollection)
     );
     const allSelected = allKeys.every(key => selectedItems.has(key));
-
     if (allSelected) {
         allKeys.forEach(key => selectedItems.delete(key));
-        document.querySelectorAll('.sel-checkbox').forEach(cb => { cb.checked = false; });
     } else {
         allKeys.forEach(key => selectedItems.add(key));
-        document.querySelectorAll('.sel-checkbox').forEach(cb => { cb.checked = true; });
     }
-
+    syncCheckboxes();
     updateHotbar();
 }
 
@@ -334,16 +329,36 @@ function exportSelected() {
 function copySelected() {
     const items = getSelectedItemObjects();
     if (items.length === 0) return;
+
+    const modal = document.getElementById('copy-options-modal');
+    if (modal) modal.style.display = 'flex';
+}
+
+function executeCopySelected() {
+    const items = getSelectedItemObjects();
+    const includeSource = document.getElementById('copy-opt-source')?.checked;
+    const includeUrl = document.getElementById('copy-opt-url')?.checked;
+    const includeDate = document.getElementById('copy-opt-date')?.checked;
+
     const text = items.map(({ snippet }) => {
         const t = typeof snippet === 'object' ? snippet.text : String(snippet);
         const title = typeof snippet === 'object' ? snippet.title : null;
         const url = typeof snippet === 'object' ? snippet.url : null;
         const savedAt = typeof snippet === 'object' ? snippet.savedAt : null;
         const dateLabel = savedAt ? new Date(savedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
-        const lines = [`"${t}"`, title ? `Source: ${title}` : null, url ? `URL: ${url}` : null, dateLabel ? `Saved: ${dateLabel}` : null].filter(Boolean);
+        const lines = [
+            `"${t}"`,
+            includeSource && title ? `Source: ${title}` : null,
+            includeUrl && url ? `URL: ${url}` : null,
+            includeDate && dateLabel ? `Saved: ${dateLabel}` : null
+        ].filter(Boolean);
         return lines.join('\n');
     }).join('\n\n---\n\n');
+
     copyTextToClipboard(text);
+
+    const modal = document.getElementById('copy-options-modal');
+    if (modal) modal.style.display = 'none';
     exitSelectionMode();
 }
 
@@ -513,6 +528,22 @@ function initUI() {
         });
     }
 
+    // Reset data button in settings modal
+    const resetBtn = document.getElementById('reset-data-btn');
+    if (resetBtn) {
+        resetBtn.addEventListener('click', () => {
+            const ok = confirm('This will permanently delete ALL saved quotes and collections and cannot be undone. Are you sure you want to reset all data?');
+            if (!ok) return;
+            chrome.storage.local.set({ saved_snippets: [], collections: {} }, () => {
+                // reload state and UI
+                loadAll();
+                const settingsModal = document.getElementById('settings-modal');
+                if (settingsModal) settingsModal.style.display = 'none';
+                alert('All data has been reset.');
+            });
+        });
+    }
+
     // New collection events
     const newCollectionBtn = document.getElementById('new-collection-btn');
     if (newCollectionBtn) {
@@ -678,6 +709,43 @@ function initUI() {
     if (hotbarMove) hotbarMove.addEventListener('click', openMoveModalForSelected);
     const hotbarCopy = document.getElementById('hotbar-copy');
     if (hotbarCopy) hotbarCopy.addEventListener('click', copySelected);
+
+    //copy options menu
+    const copyOptionsConfirm = document.getElementById('copy-options-confirm');
+    if (copyOptionsConfirm) copyOptionsConfirm.addEventListener('click', executeCopySelected);
+
+    const copyOptionsCancel = document.getElementById('copy-options-cancel');
+    if (copyOptionsCancel) copyOptionsCancel.addEventListener('click', () => {
+        document.getElementById('copy-options-modal').style.display = 'none';
+    });
+
+    const copyOptionsModal = document.getElementById('copy-options-modal');
+    if (copyOptionsModal) copyOptionsModal.addEventListener('click', (e) => {
+        if (e.target === copyOptionsModal) copyOptionsModal.style.display = 'none';
+    });
+
+
+    // info page modal
+
+    const infoBtn = document.getElementById('info-btn');
+    const infoModal = document.getElementById('info-modal');
+    const infoModalClose = document.getElementById('info-modal-close');
+    const infoModalDone = document.getElementById('info-modal-done');
+
+    if (infoBtn && infoModal) {
+        infoBtn.addEventListener('click', () => infoModal.style.display = 'flex');
+    }
+    if (infoModalClose && infoModal) {
+        infoModalClose.addEventListener('click', () => infoModal.style.display = 'none');
+    }
+    if (infoModalDone && infoModal) {
+        infoModalDone.addEventListener('click', () => infoModal.style.display = 'none');
+    }
+    if (infoModal) {
+        infoModal.addEventListener('click', (e) => {
+            if (e.target === infoModal) infoModal.style.display = 'none';
+        });
+    }
 }
 
 // --- All Quotes page ---
@@ -973,6 +1041,13 @@ function deleteSnippet(index, fromCollection) {
     });
 }
 
+function syncCheckboxes() {
+    document.querySelectorAll('.snippet-card[data-sel-key]').forEach((card) => {
+        const cb = card.querySelector('.sel-checkbox');
+        if (cb) cb.checked = selectedItems.has(card.dataset.selKey);
+    });
+}
+
 function makeSnippetCard(snippet, index, fromCollection, allowLink = true, hideTitle = false) {
     const key = getItemKey(snippet, index, fromCollection);
     const snippetText = typeof snippet === 'object' ? snippet.text : snippet;
@@ -981,11 +1056,21 @@ function makeSnippetCard(snippet, index, fromCollection, allowLink = true, hideT
 
     const card = document.createElement('div');
     card.className = 'snippet-card fade';
+    card.dataset.selKey = key;
 
     const body = document.createElement('div');
     body.className = 'snippet-body';
     body.style.cursor = 'pointer';
-    body.addEventListener('click', () => openQuoteModal(snippet));
+    body.addEventListener('click', (e) => {
+        if (selectionMode) {
+            e.stopPropagation();
+            if (dragDidMove) return; // drag just ended, don't double-toggle
+            toggleItemSelection(key);
+            syncCheckboxes();
+            return;
+        }
+        openQuoteModal(snippet);
+    });
 
     const text = document.createElement('div');
     text.className = 'snippet-text';
@@ -1021,23 +1106,19 @@ function makeSnippetCard(snippet, index, fromCollection, allowLink = true, hideT
 
     card.appendChild(body);
 
-    if (selectionMode) {
+   if (selectionMode) {
+        card.dataset.selKey = key;
         const cb = document.createElement('input');
         cb.type = 'checkbox';
         cb.className = 'sel-checkbox';
-        cb.dataset.selKey = key;
         cb.checked = selectedItems.has(key);
-        cb.style.cssText = 'position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px;accent-color:#c21b1b;cursor:pointer;';
+        cb.style.cssText = 'position:absolute;left:10px;top:50%;transform:translateY(-50%);width:16px;height:16px;accent-color:#c21b1b;cursor:pointer;z-index:1;';
+        cb.addEventListener('click', (e) => { e.stopPropagation(); });
         cb.addEventListener('change', (e) => { e.stopPropagation(); toggleItemSelection(key); });
         card.style.paddingLeft = '36px';
         card.style.position = 'relative';
-        card.appendChild(cb);
-        // make whole card body toggle checkbox
-        body.addEventListener('click', (e) => {
-            e.stopPropagation();
-            toggleItemSelection(key);
-            cb.checked = selectedItems.has(key);
-        });
+        card.insertBefore(cb, card.firstChild);
+        initDragSelection(card, key);
     }
 
     // Icon actions (folder/move and trash/delete) in upper-right
@@ -1417,9 +1498,88 @@ function openQuoteModal(snippet) {
     document.getElementById('quote-modal').style.display = 'flex';
 }
 
-// --- Events ---
+// --- Drag scroll ---
+let dragScrollInterval = null;
+const SCROLL_ZONE = 40;
+const SCROLL_SPEED = 6;
 
+function getScrollContainer() {
+    return document.querySelector('.page.active');
+}
 
+function startDragScroll(clientY) {
+    stopDragScroll();
+    const container = getScrollContainer();
+    if (!container) return;
+    dragScrollInterval = setInterval(() => {
+        const rect = container.getBoundingClientRect();
+        const distFromBottom = rect.bottom - clientY;
+        const distFromTop = clientY - rect.top;
+        if (distFromBottom < SCROLL_ZONE && distFromBottom > 0) {
+            container.scrollTop += SCROLL_SPEED * (1 + (SCROLL_ZONE - distFromBottom) / SCROLL_ZONE);
+        } else if (distFromTop < SCROLL_ZONE && distFromTop > 0) {
+            container.scrollTop -= SCROLL_SPEED * (1 + (SCROLL_ZONE - distFromTop) / SCROLL_ZONE);
+        }
+    }, 16);
+}
+
+function stopDragScroll() {
+    if (dragScrollInterval) {
+        clearInterval(dragScrollInterval);
+        dragScrollInterval = null;
+    }
+}
+
+// --- Drag selection ---
+let isDragSelecting = false;
+let dragStartKey = null;
+let dragDidMove = false;
+let dragStartSnippet = null;
+
+function initDragSelection(card, key) {
+    card.addEventListener('mousedown', (e) => {
+        if (!selectionMode || e.button !== 0) return;
+        if (e.target.closest('.sel-checkbox, .icon-btn, a, button')) return;
+        isDragSelecting = true;
+        dragStartKey = key;
+        dragDidMove = false;
+        e.preventDefault();
+    });
+}
+
+document.addEventListener('mousemove', (e) => {
+    if (!isDragSelecting || !selectionMode) return;
+    dragDidMove = true;
+
+    startDragScroll(e.clientY);
+
+    document.querySelectorAll('.snippet-card[data-sel-key]').forEach((card) => {
+        const rect = card.getBoundingClientRect();
+        if (
+            e.clientX >= rect.left &&
+            e.clientX <= rect.right &&
+            e.clientY >= rect.top &&
+            e.clientY <= rect.bottom
+        ) {
+            selectedItems.add(card.dataset.selKey);
+        }
+    });
+
+    syncCheckboxes();
+    updateHotbar();
+});
+
+document.addEventListener('mouseup', () => {
+    if (!isDragSelecting) return;
+    stopDragScroll();
+    isDragSelecting = false;
+    if (!dragDidMove && dragStartKey) {
+        toggleItemSelection(dragStartKey);
+    }
+    dragStartKey = null;
+    dragStartSnippet = null;
+    dragDidMove = false;
+});
 
 // Clear-all removed per UI spec - no clear button in popup anymore.
 

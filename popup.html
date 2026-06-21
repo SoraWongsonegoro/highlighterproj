@@ -436,12 +436,13 @@
 
     <!-- Tab Bar -->
     <div id="tab-bar">
-        <div class="tab active" data-tab="all">All View</div>
-        <div class="tab" data-tab="by-site">Page View</div>
-        <div class="tab" data-tab="collections">Collections View</div>
+        <div class="tab active" data-tab="all">All Quotes</div>
+        <div class="tab" data-tab="by-site">Quotes by Page</div>
+        <div class="tab" data-tab="collections">Collections</div>
         <input id="search-input" class="search-input" type="search" placeholder="Search..." aria-label="Search quotes" />
         <button id="select-mode-btn" class="settings-btn" title="Select quotes" style="font-size:13px; font-weight:500; min-width:64px; padding:0 10px;">Select</button>
         <button id="settings-btn" class="settings-btn" title="Settings">⚙</button>
+        <button id="info-btn" class="settings-btn" title="How to use">?</button>
     </div>
 
     <!-- Page Container -->
@@ -524,7 +525,8 @@
             </div>
             <input id="import-db-input" type="file" accept=".json,.db" style="display:none;" />
             <div id="settings-feedback" style="font-size:12px; color:#c21b1b; min-height:18px; margin-top:8px; opacity:0; transition:opacity 140ms ease;"></div>
-            <button id="settings-modal-close" style="margin-top:18px; width:100%; padding:11px; background:#f4f4f4; border:none; border-radius:10px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Close</button>
+            <button id="reset-data-btn" style="margin-top:8px; width:100%; padding:11px; background:#fff; color:#c21b1b; border:1px solid #c21b1b; border-radius:10px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Reset data (wipe all quotes & collections)</button>
+            <button id="settings-modal-close" style="margin-top:10px; width:100%; padding:11px; background:#f4f4f4; border:none; border-radius:10px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Close</button>
         </div>
     </div>
     <div id="pager-row" style="display:none; align-items:center; justify-content:center; gap:12px; padding:8px 0 6px 0; border-top:1px solid #eee; margin-top:6px;">
@@ -566,6 +568,65 @@
         <button id="hotbar-copy" style="background:rgba(255,255,255,0.13); color:#fff; border:none; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; font-family:Arial,sans-serif;">Copy</button>
         <button id="hotbar-delete" style="background:rgba(200,30,30,0.7); color:#fff; border:none; border-radius:8px; padding:7px 12px; font-size:12px; cursor:pointer; font-family:Arial,sans-serif;">Delete</button>
     </div>
+
+    <!-- Copy Options Modal -->
+    <div id="copy-options-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1200; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:12px; padding:22px; width:320px; box-shadow:0 4px 20px rgba(0,0,0,0.2);">
+        <div style="font-size:15px; font-weight:700; font-family:Cambria,'Times New Roman',serif; color:#111; margin-bottom:16px;">Copy options</div>
+        <label style="display:flex; align-items:center; gap:10px; font-size:13px; font-family:Arial,sans-serif; color:#333; margin-bottom:12px; cursor:pointer;">
+            <input type="checkbox" id="copy-opt-source" checked style="width:15px;height:15px;accent-color:#c21b1b;"> Include source name
+        </label>
+        <label style="display:flex; align-items:center; gap:10px; font-size:13px; font-family:Arial,sans-serif; color:#333; margin-bottom:12px; cursor:pointer;">
+            <input type="checkbox" id="copy-opt-url" checked style="width:15px;height:15px;accent-color:#c21b1b;"> Include URL
+        </label>
+        <label style="display:flex; align-items:center; gap:10px; font-size:13px; font-family:Arial,sans-serif; color:#333; margin-bottom:20px; cursor:pointer;">
+            <input type="checkbox" id="copy-opt-date" checked style="width:15px;height:15px;accent-color:#c21b1b;"> Include date saved
+        </label>
+        <div style="display:flex; gap:8px;">
+            <button id="copy-options-cancel" style="flex:1; padding:10px; background:#f4f4f4; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Cancel</button>
+            <button id="copy-options-confirm" style="flex:1; padding:10px; background:#111; color:#fff; border:none; border-radius:8px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Copy</button>
+        </div>
+    </div>
+</div>
+
+<div id="info-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1200; align-items:center; justify-content:center;">
+    <div style="background:white; border-radius:14px; padding:26px; width:480px; max-height:480px; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.18);">
+        <div style="display:flex; align-items:center; justify-content:space-between; margin-bottom:16px; flex-shrink:0;">
+            <div style="font-size:17px; font-weight:700; font-family:Cambria,'Times New Roman',serif; color:#111;">How to use</div>
+            <button id="info-modal-close" style="background:none; border:none; font-size:20px; cursor:pointer; color:#666; line-height:1; padding:0;">✕</button>
+        </div>
+        <div id="info-modal-content" style="overflow-y:auto; flex:1; font-size:13px; font-family:Arial,sans-serif; color:#333; line-height:1.7;">
+            
+            
+            <p>To start, go to any webpage and select some text by left-clicking and dragging. Floating above the blue-selected text, a “save” icon should appear. Click the save icon to “highlight” the quote and save it to your dashboard.</p>  
+            
+            <img id="step 1" src="images/step 1.png" style="width:100%; border-radius:8px; margin:10px 0; border:2px solid #c21b1b;" />
+            <img id="step 2" src="images/step 2.png" style="width:100%; border-radius:8px; margin:10px 0; border:2px solid #c21b1b;" />
+
+            <p>After saving a quote, you can click on the quote in the popup to view more details, including the full text, source, and date saved. From there, you can also copy the quote or save it as a PNG image.</p>
+            <img id="step 3" src="images/step 3.png" style="width:100%; border-radius:8px; margin:10px 0; border:2px solid #c21b1b;" />
+            <img id="step 4" src="images/step 4.png" style="width:100%; border-radius:8px; margin:10px 0; border:2px solid #c21b1b;" />
+            
+            <p>To organize your quotes, you can move them to a collection. First, navigate to the Collections tab. Then, create collections based on how you wish to organize your quotes. Next, return to the “All Quotes” tab, find the quote you wish to sort, hover over the quote, and click the folder button. A selection screen will allow you to choose which collection the quote goes into. </p>
+            <img id="step 5" src="images/step 5.png" style="width:100%; border-radius:8px; margin:10px 0; border:2px solid #c21b1b;" />
+            <img id="step 6" src="images/step 6.png" style="width:100%; border-radius:8px; margin:10px 0; border:2px solid #c21b1b;" />
+
+
+            <p>There are also options to copy and delete the quote when a quote is hovered over. In the collections tab, you can see all the quotes in one collection by clicking on a collection tab. Additionally, you can also delete a collection without deleting the quotes inside it. </p>
+            <br />
+            <p>To find quotes from a specific website, you can see quotes sorted by the website they are from in the “Quotes by Page” tab. To find quotes by a specific keyword, there is a search bar function that will only show quotes with that specific keyword or phrase. </p>
+            <br />
+            <p>For performing the same operation on multiple quotes, there is a select feature that allows you to batch select quotes to move, copy, export, or delete them. To access the selection view, click the top right “Select” button, which will make checkboxes appear next to quotes. Click on the checkbox to select the quote. There is also a select all button at the bottom of the screen. To exit the selection view, click the “Select” button again. </p>
+            <img id="step 7" src="images/step 7.png" style="width:100%; border-radius:8px; margin:10px 0; border:2px solid #c21b1b;" />
+
+            <p>For faster highlights, use Ctrl+Shift+S to highlight and save selected text. In the settings, you can customize quote sorting and the color of highlights.</p>
+            <br />
+            <p>Finally, you can export your quotes as a database file that can imported into other applications. Similarly, you can import database files from other users to share quotes.</p>
+            
+        </div>
+        <button id="info-modal-done" style="margin-top:18px; width:100%; padding:11px; background:#c21b1b; color:#fff; border:none; border-radius:10px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif; flex-shrink:0;">Got it!</button>
+    </div>
+</div>
 
     <script src="popup.js"></script>
 </body>
