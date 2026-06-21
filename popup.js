@@ -786,13 +786,21 @@ function renderBySiteList(groups) {
     groups.forEach((p) => {
         const card = document.createElement('div');
         card.className = 'page-item fade';
-        card.innerHTML = `
-            <div class="meta">
-                <div class="title">${p.title || p.url}</div>
-                <div class="count">${p.items.length} Highlight${p.items.length!==1?'s':''}</div>
-            </div>
-            <div class="chev">›</div>
-        `;
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'title';
+        titleDiv.textContent = p.title || p.url;
+        const countDiv = document.createElement('div');
+        countDiv.className = 'count';
+        countDiv.textContent = `${p.items.length} Highlight${p.items.length!==1?'s':''}`;
+        meta.appendChild(titleDiv);
+        meta.appendChild(countDiv);
+        const chev = document.createElement('div');
+        chev.className = 'chev';
+        chev.textContent = '›';
+        card.appendChild(meta);
+        card.appendChild(chev);
         card.addEventListener('click', () => openPageDetail(p.url, p.title || p.url, p.items));
         container.appendChild(card);
     });
@@ -862,28 +870,39 @@ function renderCollections() {
     sortedNames.forEach((name) => {
         const card = document.createElement('div');
         card.className = 'collection-card fade';
-        card.innerHTML = `
-            <div class="card-actions">
-                <button class="icon-btn delete-collection-btn" title="Delete collection">
-                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
-                        <polyline points="3 6 5 6 21 6"></polyline>
-                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
-                    </svg>
-                </button>
-            </div>
-            <div class="meta">
-                <div class="title">${name}</div>
-                <div class="count">${allCollections[name].length} Highlight${allCollections[name].length!==1?'s':''}</div>
-            </div>
-            <div class="chev">›</div>
-        `;
-        const deleteBtn = card.querySelector('.delete-collection-btn');
-        if (deleteBtn) {
-            deleteBtn.addEventListener('click', (e) => {
-                e.stopPropagation();
-                deleteCollection(name);
-            });
-        }
+
+        const actionsDiv = document.createElement('div');
+        actionsDiv.className = 'card-actions';
+        const deleteBtn = document.createElement('button');
+        deleteBtn.className = 'icon-btn delete-collection-btn';
+        deleteBtn.title = 'Delete collection';
+        deleteBtn.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
+        actionsDiv.appendChild(deleteBtn);
+
+        const meta = document.createElement('div');
+        meta.className = 'meta';
+        const titleDiv = document.createElement('div');
+        titleDiv.className = 'title';
+        titleDiv.textContent = name;
+        const countDiv = document.createElement('div');
+        countDiv.className = 'count';
+        countDiv.textContent = `${allCollections[name].length} Highlight${allCollections[name].length!==1?'s':''}`;
+        meta.appendChild(titleDiv);
+        meta.appendChild(countDiv);
+
+        const chev = document.createElement('div');
+        chev.className = 'chev';
+        chev.textContent = '›';
+
+        card.appendChild(actionsDiv);
+        card.appendChild(meta);
+        card.appendChild(chev);
+
+        deleteBtn.addEventListener('click', (e) => {
+            e.stopPropagation();
+            deleteCollection(name);
+        });
+
         card.addEventListener('click', () => openCollectionDetail(name));
         collectionsPage.appendChild(card);
     });
