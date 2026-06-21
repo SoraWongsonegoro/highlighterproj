@@ -1,12 +1,6 @@
 const popupBtn = document.createElement('button');
+popupBtn.textContent = 'Save';
 popupBtn.className = 'ts-ext-save-btn';
-popupBtn.setAttribute('aria-label', 'Save highlight');
-popupBtn.innerHTML = `
-    <svg width="18" height="18" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-        <path d="M6 4h12a2 2 0 0 1 2 2v12a2 2 0 0 1-2 2H6a2 2 0 0 1-2-2V6a2 2 0 0 1 2-2Z" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-        <path d="M8 9h8M8 13h8M8 17h5" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-    </svg>
-`;
 document.body.appendChild(popupBtn);
 
 let pendingRange = null;
@@ -52,6 +46,30 @@ function highlightRange(range) {
     });
 }
 
+function getSurroundingContext(range) {
+    const container = range.commonAncestorContainer.nodeType === Node.TEXT_NODE
+        ? range.commonAncestorContainer.parentNode
+        : range.commonAncestorContainer;
+
+    const block = container.closest('p, li, td, blockquote, div, section, article') || container;
+    const fullText = block.innerText || block.textContent || '';
+    const selectedText = range.toString();
+
+    const selectionStart = fullText.indexOf(selectedText);
+    if (selectionStart === -1) return { before: '', after: '' };
+
+    const before = fullText.slice(0, selectionStart).trim();
+    const after = fullText.slice(selectionStart + selectedText.length).trim();
+
+    const lastSentenceBefore = before.split(/(?<=[.!?])\s+/).pop() || '';
+    const firstSentenceAfter = after.split(/(?<=[.!?])\s+/).shift() || '';
+
+    return {
+        before: lastSentenceBefore,
+        after: firstSentenceAfter
+    };
+}
+
 document.addEventListener('mouseup', (e) => {
     if (popupBtn.contains(e.target)) return;
 
@@ -88,13 +106,14 @@ popupBtn.addEventListener('click', () => {
     const selectedText = pendingRange.toString().trim();
     if (!selectedText) return;
 
-    // Highlight first — no extension context needed
     highlightRange(pendingRange);
+
+    const context = getSurroundingContext(pendingRange);
+
     pendingRange = null;
     popupBtn.style.display = 'none';
     window.getSelection().removeAllRanges();
 
-    // Save after: NOW SAVES AS AN OBJECT
     try {
         chrome.storage.local.get(['saved_snippets'], (result) => {
             if (chrome.runtime.lastError) {
@@ -102,16 +121,18 @@ popupBtn.addEventListener('click', () => {
                 return;
             }
             const snippets = result.saved_snippets || [];
-            
-            // Create the new snippet object
+
             const newSnippet = {
                 text: selectedText,
                 title: document.title || 'Untitled Page',
-                url: window.location.href
+                url: window.location.href,
+                contextBefore: context.before,
+                contextAfter: context.after,
+                savedAt: new Date().toISOString()
             };
-            
+
             snippets.push(newSnippet);
-            
+
             chrome.storage.local.set({ saved_snippets: snippets }, () => {
                 if (chrome.runtime.lastError) {
                     console.warn('Storage error:', chrome.runtime.lastError.message);

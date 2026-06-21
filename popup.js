@@ -2,6 +2,8 @@
 let allSnippets = [];
 let allCollections = {};
 let activeTab = 'all';
+let sortMode = 'date';
+let searchQuery = '';
 let expandedSections = {}; // tracks collapsed/expanded site groups
 let currentPage = 1;
 let currentListItems = [];
@@ -29,17 +31,112 @@ function loadAll(callback) {
 }
 
 function renderCurrentTab() {
-    if (activeTab === 'all') renderAllQuotes();
+    if (activeTab === 'all') {
+        renderAllQuotes();
+    }
     if (activeTab === 'by-site') {
-        currentPageType = 'none';
-        renderBySite();
-        updatePager();
+        if (currentPageType === 'pageDetail' && currentPageMeta?.type === 'page') {
+            currentListItems = sortQuoteItems(currentListItems);
+            renderPageDetailList(paginateItems(currentListItems));
+            updatePager();
+        } else {
+            currentPageType = 'none';
+            renderBySite();
+            updatePager();
+        }
     }
     if (activeTab === 'collections') {
-        currentPageType = 'none';
-        renderCollections();
-        updatePager();
+        if (currentPageType === 'collectionDetail' && currentPageMeta?.type === 'collection') {
+            currentListItems = sortQuoteItems(currentListItems);
+            renderCollectionDetailList(currentPageMeta.name, paginateItems(currentListItems));
+            updatePager();
+        } else {
+            currentPageType = 'none';
+            renderCollections();
+            updatePager();
+        }
     }
+}
+
+function sortQuoteItems(items) {
+    if (sortMode === 'alpha') {
+        return [...items].sort((a, b) => {
+            const aText = typeof a.snippet === 'object' ? a.snippet.text || '' : String(a.snippet);
+            const bText = typeof b.snippet === 'object' ? b.snippet.text || '' : String(b.snippet);
+            return aText.localeCompare(bText, undefined, { sensitivity: 'base' });
+        });
+    }
+    return [...items].sort((a, b) => {
+        const aDate = new Date(typeof a.snippet === 'object' ? a.snippet.savedAt : null).getTime() || 0;
+        const bDate = new Date(typeof b.snippet === 'object' ? b.snippet.savedAt : null).getTime() || 0;
+        return bDate - aDate;
+    });
+}
+
+function sortPageGroups(groups) {
+    if (sortMode === 'alpha') {
+        return [...groups].sort((a, b) => a.title.localeCompare(b.title, undefined, { sensitivity: 'base' }));
+    }
+    return [...groups].sort((a, b) => {
+        const aDate = Math.max(0, ...a.items.map((item) => new Date(item.snippet?.savedAt || null).getTime() || 0));
+        const bDate = Math.max(0, ...b.items.map((item) => new Date(item.snippet?.savedAt || null).getTime() || 0));
+        return bDate - aDate;
+    });
+}
+
+function sortCollections(names) {
+    if (sortMode === 'alpha') {
+        return [...names].sort((a, b) => a.localeCompare(b, undefined, { sensitivity: 'base' }));
+    }
+    return [...names].sort((a, b) => {
+        const aDate = Math.max(0, ...(allCollections[a] || []).map((snippet) => new Date(snippet.savedAt || null).getTime() || 0));
+        const bDate = Math.max(0, ...(allCollections[b] || []).map((snippet) => new Date(snippet.savedAt || null).getTime() || 0));
+        return bDate - aDate;
+    });
+}
+
+function normalizeQuery(text) {
+    return String(text || '').trim().toLowerCase();
+}
+
+function quoteMatchesQuery(snippet, query) {
+    if (!query) return true;
+    const fields = [];
+    if (typeof snippet === 'object') {
+        fields.push(snippet.text, snippet.title, snippet.url, snippet.contextBefore, snippet.contextAfter);
+    } else {
+        fields.push(snippet);
+    }
+    const haystack = fields.filter(Boolean).join(' ').toLowerCase();
+    return query.split(/\s+/).every((term) => haystack.includes(term));
+}
+
+function escapeHtml(value) {
+    return String(value)
+        .replace(/&/g, '&amp;')
+        .replace(/</g, '&lt;')
+        .replace(/>/g, '&gt;')
+        .replace(/"/g, '&quot;')
+        .replace(/'/g, '&#39;');
+}
+
+function highlightQueryText(value, query) {
+    const termText = normalizeQuery(query);
+    if (!termText) {
+        return escapeHtml(value);
+    }
+
+    const terms = termText
+        .split(/\s+/)
+        .filter(Boolean)
+        .map((term) => term.replace(/[.*+?^${}()|[\]\\]/g, '\\$&'));
+
+    if (!terms.length) {
+        return escapeHtml(value);
+    }
+
+    const regex = new RegExp(`(${terms.join('|')})`, 'gi');
+    return escapeHtml(value).replace(regex, '<mark class="search-highlight">$1</mark>');
 }
 
 function paginateItems(items) {
@@ -130,14 +227,18 @@ function initUI() {
     const backBtn = document.getElementById('back-btn');
     if (backBtn) {
         backBtn.addEventListener('click', () => {
-            document.getElementById('collection-detail').style.display = 'none';
-            document.getElementById('collections-list').style.display = 'block';
+            const collectionDetail = document.getElementById('collection-detail');
+            const collectionsList = document.getElementById('collections-list');
             const toolbar = document.querySelector('.toolbar');
+            if (collectionDetail) collectionDetail.style.display = 'none';
             if (toolbar) toolbar.style.display = 'flex';
+            if (collectionsList) {
+                collectionsList.style.display = 'grid';
+            }
             currentPageType = 'none';
             currentListItems = [];
             currentPageMeta = null;
-            updatePager();
+            renderCollections();
         });
     }
 
@@ -214,6 +315,34 @@ function initUI() {
     const pagerNext = document.getElementById('pager-next');
     if (pagerPrev) pagerPrev.addEventListener('click', () => changePage(-1));
     if (pagerNext) pagerNext.addEventListener('click', () => changePage(1));
+
+    const sortToggle = document.getElementById('sort-toggle');
+    if (sortToggle) {
+        sortToggle.addEventListener('click', () => {
+            sortMode = sortMode === 'date' ? 'alpha' : 'date';
+            sortToggle.textContent = `Sort: ${sortMode === 'date' ? 'Date' : 'A–Z'}`;
+            renderCurrentTab();
+        });
+    }
+
+    const searchInput = document.getElementById('search-input');
+    if (searchInput) {
+        searchInput.value = searchQuery;
+        searchInput.addEventListener('input', (e) => {
+            searchQuery = e.target.value || '';
+            currentPage = 1;
+            renderCurrentTab();
+        });
+    }
+
+    const quoteModalCancel = document.getElementById('quote-modal-cancel');
+    if (quoteModalCancel) quoteModalCancel.addEventListener('click', () => {
+        document.getElementById('quote-modal').style.display = 'none';
+    });
+    const quoteModal = document.getElementById('quote-modal');
+    if (quoteModal) quoteModal.addEventListener('click', (e) => {
+        if (e.target === quoteModal) quoteModal.style.display = 'none';
+    });
 }
 
 // --- All Quotes page ---
@@ -230,18 +359,21 @@ function renderAllQuotes() {
         )
     ];
 
-    if (allQuotes.length === 0) {
+    const filteredQuotes = allQuotes.filter((item) => quoteMatchesQuery(item.snippet, normalizeQuery(searchQuery)));
+    const sortedQuotes = sortQuoteItems(filteredQuotes);
+
+    if (sortedQuotes.length === 0) {
         currentPageType = 'none';
         currentListItems = [];
-        container.innerHTML = '<p class="empty-msg">No saved quotes yet.</p>';
+        container.innerHTML = `<p class="empty-msg">${searchQuery ? 'No saved quotes match your search.' : 'No saved quotes yet.'}</p>`;
         updatePager();
         return;
     }
 
     currentPageType = 'all';
-    currentListItems = allQuotes;
+    currentListItems = sortedQuotes;
     currentPage = 1;
-    renderQuoteCards(paginateItems(allQuotes));
+    renderQuoteCards(paginateItems(sortedQuotes));
     updatePager();
 }
 
@@ -267,13 +399,14 @@ function renderBySite() {
     currentListItems = [];
     currentPageMeta = null;
 
-    if (allQuotes.length === 0) {
-        container.innerHTML = '<p class="empty-msg">No saved quotes yet.</p>';
+    const filteredQuotes = allQuotes.filter((item) => quoteMatchesQuery(item.snippet, normalizeQuery(searchQuery)));
+    if (filteredQuotes.length === 0) {
+        container.innerHTML = '<p class="empty-msg">No saved quotes match your search.</p>';
         return;
     }
 
     const pages = {}; // key: url (or generated key), value: { title, url, items[] }
-    allQuotes.forEach((item) => {
+    filteredQuotes.forEach((item) => {
         const url = typeof item.snippet === 'object' ? item.snippet.url || '__no_url__' : '__no_url__';
         const title = typeof item.snippet === 'object' ? item.snippet.title || url : (typeof item.snippet === 'string' ? '' : '');
         const key = url;
@@ -287,7 +420,7 @@ function renderBySite() {
     container.appendChild(header);
 
     // Render each page as a card: title + count
-    Object.values(pages).forEach((p) => {
+    sortPageGroups(Object.values(pages)).forEach((p) => {
         const card = document.createElement('div');
         card.className = 'page-item fade';
         card.innerHTML = `
@@ -308,9 +441,10 @@ function openPageDetail(url, title, items) {
     const detailTitle = document.getElementById('page-detail-title');
 
     if (!detail || !detailTitle) return;
+    const sortedItems = sortQuoteItems(items);
     currentPageType = 'pageDetail';
-    currentListItems = items;
-    currentPageMeta = { type: 'page', url, title, items };
+    currentListItems = sortedItems;
+    currentPageMeta = { type: 'page', url, title, items: sortedItems };
     currentPage = 1;
 
     listContainer.style.display = 'none';
@@ -347,11 +481,13 @@ function renderCollections() {
     collectionsPage.innerHTML = '';
 
     const names = Object.keys(allCollections);
-    const sortedNames = names.sort((a, b) => {
-        if (a === 'favorites') return -1;
-        if (b === 'favorites') return 1;
-        return a.localeCompare(b);
+    const filteredNames = names.filter((name) => {
+        if (!searchQuery) return true;
+        const lowerName = name.toLowerCase();
+        if (lowerName.includes(searchQuery.toLowerCase())) return true;
+        return (allCollections[name] || []).some((snippet) => quoteMatchesQuery(snippet, normalizeQuery(searchQuery)));
     });
+    const sortedNames = sortCollections(filteredNames);
 
     if (sortedNames.length === 0) {
         collectionsPage.innerHTML = '<p class="empty-msg">No collections yet. Add one above.</p>';
@@ -362,12 +498,27 @@ function renderCollections() {
         const card = document.createElement('div');
         card.className = 'collection-card fade';
         card.innerHTML = `
+            <div class="card-actions">
+                <button class="icon-btn delete-collection-btn" title="Delete collection">
+                    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                        <polyline points="3 6 5 6 21 6"></polyline>
+                        <path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path>
+                    </svg>
+                </button>
+            </div>
             <div class="meta">
                 <div class="title">${name}</div>
                 <div class="count">${allCollections[name].length} Highlight${allCollections[name].length!==1?'s':''}</div>
             </div>
             <div class="chev">›</div>
         `;
+        const deleteBtn = card.querySelector('.delete-collection-btn');
+        if (deleteBtn) {
+            deleteBtn.addEventListener('click', (e) => {
+                e.stopPropagation();
+                deleteCollection(name);
+            });
+        }
         card.addEventListener('click', () => openCollectionDetail(name));
         collectionsPage.appendChild(card);
     });
@@ -381,10 +532,12 @@ function openCollectionDetail(name) {
     const detailView = document.getElementById('collection-detail');
     const detailTitle = document.getElementById('collection-detail-title');
 
-    const snippets = (allCollections[name] || []).map((snippet, index) => ({ snippet, index, fromCollection: name }));
+    const filteredSnippets = (allCollections[name] || []).map((snippet, index) => ({ snippet, index, fromCollection: name }))
+        .filter((item) => quoteMatchesQuery(item.snippet, normalizeQuery(searchQuery)));
+    const sortedSnippets = sortQuoteItems(filteredSnippets);
     currentPageType = 'collectionDetail';
-    currentListItems = snippets;
-    currentPageMeta = { type: 'collection', name, items: snippets };
+    currentListItems = sortedSnippets;
+    currentPageMeta = { type: 'collection', name, items: sortedSnippets };
     currentPage = 1;
 
     collectionsPage.style.display = 'none';
@@ -392,14 +545,16 @@ function openCollectionDetail(name) {
     detailView.style.display = 'flex';
     detailTitle.textContent = name;
 
-    if (snippets.length === 0) {
+    if (sortedSnippets.length === 0) {
         const detailList = document.getElementById('collection-detail-list');
-        if (detailList) detailList.innerHTML = '<p class="empty-msg">No quotes in this collection yet.</p>';
+        if (detailList) {
+            detailList.innerHTML = `<p class="empty-msg">${searchQuery ? 'No saved quotes match your search in this collection.' : 'No quotes in this collection yet.'}</p>`;
+        }
         updatePager();
         return;
     }
 
-    renderCollectionDetailList(name, paginateItems(snippets));
+    renderCollectionDetailList(name, paginateItems(sortedSnippets));
 }
 
 
@@ -490,15 +645,18 @@ function makeSnippetCard(snippet, index, fromCollection, allowLink = true) {
 
     const body = document.createElement('div');
     body.className = 'snippet-body';
+    body.style.cursor = 'pointer';
+    body.addEventListener('click', () => openQuoteModal(snippet));
 
     const text = document.createElement('div');
     text.className = 'snippet-text';
-    text.textContent = snippetText;
+    text.innerHTML = highlightQueryText(snippetText, searchQuery);
     body.appendChild(text);
 
     if (snippetUrl && allowLink) {
         // show small title above the snippet text (site/title) as a clickable header
         const titleEl = document.createElement('a');
+        titleEl.addEventListener('click', (e) => e.stopPropagation());
         titleEl.className = 'snippet-title';
         let hostLabel = snippetTitle;
         if (!hostLabel) {
@@ -508,7 +666,7 @@ function makeSnippetCard(snippet, index, fromCollection, allowLink = true) {
                 hostLabel = snippetUrl;
             }
         }
-        titleEl.textContent = hostLabel;
+        titleEl.innerHTML = highlightQueryText(hostLabel, searchQuery);
         titleEl.href = snippetUrl;
         titleEl.target = '_blank';
         titleEl.rel = 'noopener';
@@ -516,7 +674,7 @@ function makeSnippetCard(snippet, index, fromCollection, allowLink = true) {
     } else if (snippetTitle) {
         const titleEl = document.createElement('div');
         titleEl.className = 'snippet-title';
-        titleEl.textContent = snippetTitle;
+        titleEl.innerHTML = highlightQueryText(snippetTitle, searchQuery);
         body.insertBefore(titleEl, text);
     }
 
@@ -547,6 +705,7 @@ function makeSnippetCard(snippet, index, fromCollection, allowLink = true) {
     actions.appendChild(moveIcon);
     actions.appendChild(deleteIcon);
     card.appendChild(actions);
+    
 
     return card;
 }
@@ -569,6 +728,80 @@ function createCollection(name) {
     chrome.storage.local.set({ collections }, () => loadAll());
 }
 
+function deleteCollection(name) {
+    if (!name || !allCollections[name]) return;
+    const confirmed = confirm(`Delete collection "${name}"? This will remove the collection but keep its saved snippets.`);
+    if (!confirmed) return;
+    const collections = { ...allCollections };
+    delete collections[name];
+    chrome.storage.local.set({ collections }, () => loadAll());
+}
+
+
+function openQuoteModal(snippet) {
+    const text = typeof snippet === 'object' ? snippet.text : snippet;
+    const url = typeof snippet === 'object' ? snippet.url : null;
+    const title = typeof snippet === 'object' ? snippet.title : null;
+    const before = typeof snippet === 'object' ? snippet.contextBefore : '';
+    const after = typeof snippet === 'object' ? snippet.contextAfter : '';
+    const savedAt = typeof snippet === 'object' ? snippet.savedAt : null;
+
+    const isTitleQuote = typeof snippet === 'object' && title && text.trim() === title.trim() && !before && !after;
+
+    const beforeEl = document.getElementById('quote-modal-context-before');
+    const afterEl = document.getElementById('quote-modal-context-after');
+    if (beforeEl) {
+        if (!isTitleQuote && before) {
+            beforeEl.textContent = `…${before}`;
+            beforeEl.style.display = 'block';
+        } else {
+            beforeEl.textContent = '';
+            beforeEl.style.display = 'none';
+        }
+    }
+    if (afterEl) {
+        if (!isTitleQuote && after) {
+            afterEl.textContent = `${after}…`;
+            afterEl.style.display = 'block';
+        } else {
+            afterEl.textContent = '';
+            afterEl.style.display = 'none';
+        }
+    }
+
+    const quoteTextEl = document.getElementById('quote-modal-text');
+    if (quoteTextEl) {
+        quoteTextEl.textContent = text;
+    }
+
+    const savedAtEl = document.getElementById('quote-modal-saved-at');
+    if (savedAtEl) {
+        if (savedAt) {
+            const date = new Date(savedAt);
+            if (!Number.isNaN(date.getTime())) {
+                savedAtEl.textContent = `Saved on ${date.toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' })}`;
+                savedAtEl.style.display = 'block';
+            } else {
+                savedAtEl.style.display = 'none';
+            }
+        } else {
+            savedAtEl.style.display = 'none';
+        }
+    }
+
+    const sourceEl = document.getElementById('quote-modal-source');
+    if (sourceEl) {
+        if (url) {
+            sourceEl.href = url;
+            sourceEl.textContent = title || url;
+            sourceEl.style.display = 'block';
+        } else {
+            sourceEl.style.display = 'none';
+        }
+    }
+
+    document.getElementById('quote-modal').style.display = 'flex';
+}
 
 // --- Events ---
 
@@ -580,3 +813,4 @@ document.addEventListener('DOMContentLoaded', () => {
     initUI();
     loadAll();
 });
+
