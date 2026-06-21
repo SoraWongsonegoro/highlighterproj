@@ -9,6 +9,7 @@ let currentPage = 1;
 let currentListItems = [];
 let currentPageType = 'none';
 let currentPageMeta = null;
+let currentQuoteModalSnippet = null;
 const pageSize = 20;
 
 // --- Init ---
@@ -103,7 +104,7 @@ function quoteMatchesQuery(snippet, query) {
     if (!query) return true;
     const fields = [];
     if (typeof snippet === 'object') {
-        fields.push(snippet.text, snippet.title, snippet.url, snippet.contextBefore, snippet.contextAfter);
+        fields.push(snippet.text, snippet.title, snippet.url);
     } else {
         fields.push(snippet);
     }
@@ -193,7 +194,7 @@ function renderPageDetailList(items) {
     if (!detailList) return;
     detailList.innerHTML = '';
     items.forEach(({ snippet, index, fromCollection }) => {
-        detailList.appendChild(makeSnippetCard(snippet, index, fromCollection, false));
+        detailList.appendChild(makeSnippetCard(snippet, index, fromCollection, false, true));
     });
     updatePager();
 }
@@ -316,12 +317,13 @@ function initUI() {
     if (pagerPrev) pagerPrev.addEventListener('click', () => changePage(-1));
     if (pagerNext) pagerNext.addEventListener('click', () => changePage(1));
 
-    const sortToggle = document.getElementById('sort-toggle');
-    if (sortToggle) {
-        sortToggle.addEventListener('click', () => {
-            sortMode = sortMode === 'date' ? 'alpha' : 'date';
-            sortToggle.textContent = `Sort: ${sortMode === 'date' ? 'Date' : 'A–Z'}`;
+    const sortSelect = document.getElementById('sort-select');
+    if (sortSelect) {
+        sortSelect.value = sortMode;
+        sortSelect.addEventListener('change', (e) => {
+            sortMode = e.target.value;
             renderCurrentTab();
+            showSettingsFeedback(`Sort set to ${sortMode === 'date' ? 'Date' : 'A–Z'}.`);
         });
     }
 
@@ -335,9 +337,56 @@ function initUI() {
         });
     }
 
+    const settingsBtn = document.getElementById('settings-btn');
+    const settingsModal = document.getElementById('settings-modal');
+    const settingsClose = document.getElementById('settings-modal-close');
+    const exportDbBtn = document.getElementById('export-db-btn');
+    const importDbBtn = document.getElementById('import-db-btn');
+    const importDbInput = document.getElementById('import-db-input');
+
+    if (settingsBtn && settingsModal) {
+        settingsBtn.addEventListener('click', () => {
+            settingsModal.style.display = 'flex';
+        });
+    }
+    if (settingsClose && settingsModal) {
+        settingsClose.addEventListener('click', () => {
+            settingsModal.style.display = 'none';
+        });
+    }
+    if (settingsModal) {
+        settingsModal.addEventListener('click', (e) => {
+            if (e.target === settingsModal) {
+                settingsModal.style.display = 'none';
+            }
+        });
+    }
+    if (exportDbBtn) {
+        exportDbBtn.addEventListener('click', () => exportDatabase());
+    }
+    if (importDbBtn && importDbInput) {
+        importDbBtn.addEventListener('click', () => importDbInput.click());
+    }
+    if (importDbInput) {
+        importDbInput.addEventListener('change', (event) => {
+            const file = event.target.files?.[0];
+            if (file) {
+                importDatabaseFile(file);
+            }
+            event.target.value = '';
+        });
+    }
+
     const quoteModalCancel = document.getElementById('quote-modal-cancel');
     if (quoteModalCancel) quoteModalCancel.addEventListener('click', () => {
         document.getElementById('quote-modal').style.display = 'none';
+    });
+    const quoteModalCopy = document.getElementById('quote-modal-copy');
+    if (quoteModalCopy) quoteModalCopy.addEventListener('click', () => copyQuoteFullText(currentQuoteModalSnippet));
+    const quoteModalPng = document.getElementById('quote-modal-png');
+    if (quoteModalPng) quoteModalPng.addEventListener('click', () => {
+        saveQuoteAsPng(currentQuoteModalSnippet);
+        showQuoteModalFeedback('PNG saved!');
     });
     const quoteModal = document.getElementById('quote-modal');
     if (quoteModal) quoteModal.addEventListener('click', (e) => {
@@ -635,7 +684,7 @@ function deleteSnippet(index, fromCollection) {
     });
 }
 
-function makeSnippetCard(snippet, index, fromCollection, allowLink = true) {
+function makeSnippetCard(snippet, index, fromCollection, allowLink = true, hideTitle = false) {
     const snippetText = typeof snippet === 'object' ? snippet.text : snippet;
     const snippetUrl = typeof snippet === 'object' ? snippet.url : null;
     const snippetTitle = typeof snippet === 'object' ? snippet.title : null;
@@ -653,38 +702,34 @@ function makeSnippetCard(snippet, index, fromCollection, allowLink = true) {
     text.innerHTML = highlightQueryText(snippetText, searchQuery);
     body.appendChild(text);
 
-    if (snippetUrl && allowLink) {
-        // show small title above the snippet text (site/title) as a clickable header
-        const titleEl = document.createElement('a');
-        titleEl.addEventListener('click', (e) => e.stopPropagation());
-        titleEl.className = 'snippet-title';
-        let hostLabel = snippetTitle;
-        if (!hostLabel) {
-            try {
-                hostLabel = (new URL(snippetUrl)).hostname;
-            } catch (e) {
-                hostLabel = snippetUrl;
+    if (!hideTitle) {
+        if (snippetUrl && allowLink) {
+            // show small title above the snippet text (site/title) as a clickable header
+            const titleEl = document.createElement('a');
+            titleEl.addEventListener('click', (e) => e.stopPropagation());
+            titleEl.className = 'snippet-title';
+            let hostLabel = snippetTitle;
+            if (!hostLabel) {
+                try {
+                    hostLabel = (new URL(snippetUrl)).hostname;
+                } catch (e) {
+                    hostLabel = snippetUrl;
+                }
             }
+            titleEl.innerHTML = highlightQueryText(hostLabel, searchQuery);
+            titleEl.href = snippetUrl;
+            titleEl.target = '_blank';
+            titleEl.rel = 'noopener';
+            body.insertBefore(titleEl, text);
+        } else if (snippetTitle) {
+            const titleEl = document.createElement('div');
+            titleEl.className = 'snippet-title';
+            titleEl.innerHTML = highlightQueryText(snippetTitle, searchQuery);
+            body.insertBefore(titleEl, text);
         }
-        titleEl.innerHTML = highlightQueryText(hostLabel, searchQuery);
-        titleEl.href = snippetUrl;
-        titleEl.target = '_blank';
-        titleEl.rel = 'noopener';
-        body.insertBefore(titleEl, text);
-    } else if (snippetTitle) {
-        const titleEl = document.createElement('div');
-        titleEl.className = 'snippet-title';
-        titleEl.innerHTML = highlightQueryText(snippetTitle, searchQuery);
-        body.insertBefore(titleEl, text);
     }
 
     card.appendChild(body);
-
-    // small right chevron for navigation affordance
-    const arrow = document.createElement('div');
-    arrow.textContent = '›';
-    arrow.style.cssText = 'font-size:20px;color:#111;align-self:center;padding:0 8px;';
-    card.appendChild(arrow);
 
     // Icon actions (folder/move and trash/delete) in upper-right
     const actions = document.createElement('div');
@@ -696,16 +741,36 @@ function makeSnippetCard(snippet, index, fromCollection, allowLink = true) {
     moveIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M22 19a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h5l2 3h9a2 2 0 0 1 2 2z"></path></svg>';
     moveIcon.addEventListener('click', (e) => { e.stopPropagation(); openMoveModal(snippet, index, fromCollection); });
 
+    const copyIcon = document.createElement('button');
+    copyIcon.className = 'icon-btn';
+    copyIcon.title = 'Copy text';
+    copyIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><rect x="9" y="9" width="13" height="13" rx="2" ry="2"></rect><path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path></svg>';
+    copyIcon.addEventListener('click', (e) => {
+        e.stopPropagation();
+        copyTextToClipboard(snippetText);
+        const tooltip = card.querySelector('.copy-tooltip');
+        if (tooltip) {
+            tooltip.classList.add('visible');
+            clearTimeout(tooltip.hideTimeout);
+            tooltip.hideTimeout = setTimeout(() => tooltip.classList.remove('visible'), 1200);
+        }
+    });
+
     const deleteIcon = document.createElement('button');
     deleteIcon.className = 'icon-btn';
     deleteIcon.title = 'Delete';
     deleteIcon.innerHTML = '<svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><polyline points="3 6 5 6 21 6"></polyline><path d="M19 6l-1 14a2 2 0 0 1-2 2H8a2 2 0 0 1-2-2L5 6m3 0V4a2 2 0 0 1 2-2h4a2 2 0 0 1 2 2v2"></path></svg>';
     deleteIcon.addEventListener('click', (e) => { e.stopPropagation(); deleteSnippet(index, fromCollection); });
 
+    actions.appendChild(copyIcon);
     actions.appendChild(moveIcon);
     actions.appendChild(deleteIcon);
     card.appendChild(actions);
-    
+
+    const tooltip = document.createElement('div');
+    tooltip.className = 'copy-tooltip';
+    tooltip.textContent = 'Copied!';
+    card.appendChild(tooltip);
 
     return card;
 }
@@ -737,41 +802,281 @@ function deleteCollection(name) {
     chrome.storage.local.set({ collections }, () => loadAll());
 }
 
+function getQuoteModalText(snippet) {
+    const text = typeof snippet === 'object' ? snippet.text : String(snippet);
+    const url = typeof snippet === 'object' ? snippet.url : '';
+    const title = typeof snippet === 'object' ? snippet.title : '';
+    const savedAt = typeof snippet === 'object' ? snippet.savedAt : null;
+    const dateLabel = savedAt ? new Date(savedAt).toLocaleString([], { month: 'short', day: 'numeric', year: 'numeric', hour: 'numeric', minute: '2-digit' }) : '';
+    const lines = [`"${text}"`, '', title ? `Source: ${title}` : null, url ? `URL: ${url}` : null, dateLabel ? `Saved: ${dateLabel}` : null].filter(Boolean);
+    return lines.join('\n');
+}
+
+function showQuoteModalFeedback(message) {
+    const tooltip = document.getElementById('quote-modal-tooltip');
+    if (!tooltip) return;
+    tooltip.textContent = message;
+    tooltip.style.opacity = '1';
+    clearTimeout(tooltip.hideTimeout);
+    tooltip.hideTimeout = setTimeout(() => {
+        tooltip.style.opacity = '0';
+    }, 1400);
+}
+
+function copyTextToClipboard(text) {
+    if (!text) return;
+    if (navigator.clipboard?.writeText) {
+        navigator.clipboard.writeText(text).catch(() => {
+            const textarea = document.createElement('textarea');
+            textarea.value = text;
+            textarea.style.position = 'fixed';
+            textarea.style.left = '-9999px';
+            document.body.appendChild(textarea);
+            textarea.select();
+            document.execCommand('copy');
+            document.body.removeChild(textarea);
+        });
+        return;
+    }
+    const textarea = document.createElement('textarea');
+    textarea.value = text;
+    textarea.style.position = 'fixed';
+    textarea.style.left = '-9999px';
+    document.body.appendChild(textarea);
+    textarea.select();
+    document.execCommand('copy');
+    document.body.removeChild(textarea);
+}
+
+function copyQuoteFullText(snippet) {
+    if (!snippet) return;
+    const text = getQuoteModalText(snippet);
+    copyTextToClipboard(text);
+    showQuoteModalFeedback('Copied!');
+}
+
+function showSettingsFeedback(message) {
+    const feedback = document.getElementById('settings-feedback');
+    if (!feedback) return;
+    feedback.textContent = message;
+    feedback.style.opacity = '1';
+    clearTimeout(feedback.hideTimeout);
+    feedback.hideTimeout = setTimeout(() => {
+        feedback.style.opacity = '0';
+    }, 1800);
+}
+
+function exportDatabase() {
+    chrome.storage.local.get(['saved_snippets', 'collections'], (result) => {
+        const data = {
+            saved_snippets: result.saved_snippets || [],
+            collections: result.collections || {}
+        };
+        const blob = new Blob([JSON.stringify(data, null, 2)], { type: 'application/json' });
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `highlighter-quotes-${new Date().toISOString().slice(0, 10)}.db`;
+        document.body.appendChild(link);
+        link.click();
+        URL.revokeObjectURL(link.href);
+        document.body.removeChild(link);
+        showSettingsFeedback('Export complete.');
+    });
+}
+
+function importDatabaseFile(file) {
+    const reader = new FileReader();
+    reader.onload = (event) => {
+        try {
+            const rawText = String(event.target?.result || '').replace(/^\uFEFF/, '');
+            const payload = JSON.parse(rawText);
+            mergeImportedDatabase(payload);
+        } catch (err) {
+            showSettingsFeedback('Import failed: invalid database file.');
+        }
+    };
+    reader.onerror = () => {
+        showSettingsFeedback('Import failed: unable to read file.');
+    };
+    reader.readAsText(file);
+}
+
+function mergeImportedDatabase(payload) {
+    const importedSnippets = Array.isArray(payload?.saved_snippets)
+        ? payload.saved_snippets
+        : Array.isArray(payload?.savedQuotes)
+            ? payload.savedQuotes
+            : Array.isArray(payload?.quotes)
+                ? payload.quotes
+                : Array.isArray(payload?.highlights)
+                    ? payload.highlights
+                    : Array.isArray(payload?.items)
+                        ? payload.items
+                        : Array.isArray(payload?.snippets)
+                            ? payload.snippets
+                            : Array.isArray(payload?.data)
+                                ? payload.data
+                                : Array.isArray(payload)
+                                    ? payload
+                                    : [];
+    const importedCollections = payload?.collections && typeof payload.collections === 'object'
+        ? payload.collections
+        : {};
+
+    if (!Array.isArray(importedSnippets)) {
+        showSettingsFeedback('Import failed: no valid quotes found.');
+        return;
+    }
+
+    chrome.storage.local.get(['saved_snippets', 'collections'], (result) => {
+        const existingSnippets = result.saved_snippets || [];
+        const existingCollections = result.collections || {};
+
+        const snippetKey = (snippet) => [snippet.text || '', snippet.url || '', snippet.title || '', snippet.savedAt || ''].join('||');
+        const existingKeys = new Set(existingSnippets.map(snippetKey));
+
+        const mergedSnippets = [...existingSnippets];
+        importedSnippets.forEach((snippet) => {
+            if (snippet && typeof snippet === 'object') {
+                if (!existingKeys.has(snippetKey(snippet))) {
+                    mergedSnippets.push({
+                        text: snippet.text || '',
+                        url: snippet.url || '',
+                        title: snippet.title || '',
+                        savedAt: snippet.savedAt || new Date().toISOString()
+                    });
+                    existingKeys.add(snippetKey(snippet));
+                }
+            }
+        });
+
+        const mergedCollections = { ...existingCollections };
+        Object.entries(importedCollections).forEach(([collectionName, snippets]) => {
+            if (!Array.isArray(snippets)) return;
+            if (!Array.isArray(mergedCollections[collectionName])) {
+                mergedCollections[collectionName] = [];
+            }
+            const collectionKeys = new Set((mergedCollections[collectionName] || []).map(snippetKey));
+            snippets.forEach((snippet) => {
+                if (snippet && typeof snippet === 'object' && !collectionKeys.has(snippetKey(snippet))) {
+                    mergedCollections[collectionName].push({
+                        text: snippet.text || '',
+                        url: snippet.url || '',
+                        title: snippet.title || '',
+                        savedAt: snippet.savedAt || new Date().toISOString()
+                    });
+                    collectionKeys.add(snippetKey(snippet));
+                }
+            });
+        });
+
+        chrome.storage.local.set({ saved_snippets: mergedSnippets, collections: mergedCollections }, () => {
+            showSettingsFeedback('Import complete.');
+            loadAll();
+        });
+    });
+}
+
+function wrapCanvasText(ctx, text, maxWidth) {
+    const words = text.split(' ');
+    const lines = [];
+    let currentLine = '';
+    words.forEach((word) => {
+        const testLine = currentLine ? `${currentLine} ${word}` : word;
+        const width = ctx.measureText(testLine).width;
+        if (width > maxWidth && currentLine) {
+            lines.push(currentLine);
+            currentLine = word;
+        } else {
+            currentLine = testLine;
+        }
+    });
+    if (currentLine) lines.push(currentLine);
+    return lines;
+}
+
+function sanitizeFileName(value) {
+    return String(value || 'quote').replace(/[\\/:*?"<>|]+/g, '').trim().slice(0, 80) || 'quote';
+}
+
+function saveQuoteAsPng(snippet) {
+    if (!snippet) return;
+    const quoteText = typeof snippet === 'object' ? snippet.text : String(snippet);
+    const titleText = typeof snippet === 'object' ? snippet.title : 'Saved Quote';
+    const savedAt = typeof snippet === 'object' ? snippet.savedAt : null;
+    const canvasSize = 900;
+    const canvas = document.createElement('canvas');
+    canvas.width = canvasSize;
+    canvas.height = canvasSize;
+    const ctx = canvas.getContext('2d');
+    if (!ctx) return;
+
+    ctx.fillStyle = '#c81b21';
+    ctx.fillRect(0, 0, canvasSize, canvasSize);
+
+    ctx.fillStyle = '#a5161f';
+    ctx.fillRect(0, 0, canvasSize, 120);
+
+    const padding = 64;
+    const maxTextWidth = canvasSize - padding * 2;
+    ctx.textAlign = 'left';
+    ctx.textBaseline = 'top';
+
+    ctx.fillStyle = '#fff';
+    ctx.font = '700 24px Cambria, serif';
+    const titleLines = wrapCanvasText(ctx, titleText.toUpperCase(), maxTextWidth);
+    titleLines.forEach((line, index) => {
+        ctx.fillText(line, padding, padding / 2 + index * 32);
+    });
+
+    ctx.fillStyle = 'rgba(255,255,255,0.18)';
+    ctx.fillRect(padding / 2, 140, canvasSize - padding, 3);
+
+    const quoteTop = 170;
+    ctx.fillStyle = '#fff';
+    ctx.font = 'italic 40px Cambria, serif';
+    const quoteLines = wrapCanvasText(ctx, `“${quoteText}”`, maxTextWidth);
+    quoteLines.forEach((line, index) => {
+        ctx.fillText(line, padding, quoteTop + index * 52);
+    });
+
+    if (savedAt) {
+        ctx.font = '16px Cambria, serif';
+        ctx.fillStyle = 'rgba(255,255,255,0.75)';
+        ctx.fillText(`Saved on ${new Date(savedAt).toLocaleDateString()}`, padding, canvasSize - padding - 28);
+    }
+
+    ctx.font = '20px Cambria, serif';
+    ctx.fillStyle = 'rgba(255,255,255,0.85)';
+    const footerText = `quote from ${titleText}`;
+    const footerLines = wrapCanvasText(ctx, footerText, maxTextWidth);
+    footerLines.forEach((line, index) => {
+        ctx.fillText(line, padding, canvasSize - padding + index * 26 - 60);
+    });
+
+    canvas.toBlob((blob) => {
+        if (!blob) return;
+        const link = document.createElement('a');
+        link.href = URL.createObjectURL(blob);
+        link.download = `${sanitizeFileName(titleText)}.png`;
+        document.body.appendChild(link);
+        link.click();
+        URL.revokeObjectURL(link.href);
+        document.body.removeChild(link);
+    }, 'image/png');
+}
 
 function openQuoteModal(snippet) {
+    currentQuoteModalSnippet = snippet;
     const text = typeof snippet === 'object' ? snippet.text : snippet;
     const url = typeof snippet === 'object' ? snippet.url : null;
     const title = typeof snippet === 'object' ? snippet.title : null;
-    const before = typeof snippet === 'object' ? snippet.contextBefore : '';
-    const after = typeof snippet === 'object' ? snippet.contextAfter : '';
     const savedAt = typeof snippet === 'object' ? snippet.savedAt : null;
 
-    const isTitleQuote = typeof snippet === 'object' && title && text.trim() === title.trim() && !before && !after;
-
-    const beforeEl = document.getElementById('quote-modal-context-before');
-    const afterEl = document.getElementById('quote-modal-context-after');
-    if (beforeEl) {
-        if (!isTitleQuote && before) {
-            beforeEl.textContent = `…${before}`;
-            beforeEl.style.display = 'block';
-        } else {
-            beforeEl.textContent = '';
-            beforeEl.style.display = 'none';
-        }
-    }
-    if (afterEl) {
-        if (!isTitleQuote && after) {
-            afterEl.textContent = `${after}…`;
-            afterEl.style.display = 'block';
-        } else {
-            afterEl.textContent = '';
-            afterEl.style.display = 'none';
-        }
-    }
-
-    const quoteTextEl = document.getElementById('quote-modal-text');
-    if (quoteTextEl) {
-        quoteTextEl.textContent = text;
+    const combinedEl = document.getElementById('quote-modal-combined');
+    if (combinedEl) {
+        combinedEl.innerHTML = `<strong style="color:#111;font-weight:700;">${escapeHtml(text)}</strong>`;
+        combinedEl.style.display = 'block';
     }
 
     const savedAtEl = document.getElementById('quote-modal-saved-at');

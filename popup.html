@@ -7,7 +7,7 @@
 
         /* Primary font is Cambria, small numeric/text UI uses Arial */
         body {
-            width: 520px;
+            width: 560px;
             height: 560px;
             font-family: Cambria, "Times New Roman", serif;
             background: #ffffff;
@@ -42,24 +42,11 @@
             box-shadow: inset 0 -3px 0 rgba(0,0,0,0.05);
             padding: 6px 12px;
         }
-        .sort-toggle {
-            margin-left: auto;
-            padding: 6px 12px;
-            border: none;
-            border-radius: 8px;
-            background: #f4f4f4;
-            color: #111;
-            cursor: pointer;
-            font-size: 13px;
-            font-family: Cambria, "Times New Roman", serif;
-        }
-        .sort-toggle:hover {
-            background: #e8e8e8;
-        }
         .search-input {
             flex: 1;
-            min-width: 160px;
-            padding: 7px 10px;
+            min-width: 140px;
+            max-width: 220px;
+            padding: 6px 10px;
             border: 1px solid #d1d1d1;
             border-radius: 8px;
             font-size: 13px;
@@ -71,6 +58,23 @@
             outline: none;
             border-color: #c21b1b;
             background: white;
+        }
+
+        .settings-btn {
+            width: 34px;
+            height: 34px;
+            border: none;
+            border-radius: 10px;
+            background: #f4f4f4;
+            cursor: pointer;
+            display: inline-flex;
+            align-items: center;
+            justify-content: center;
+            color: #111;
+            font-size: 16px;
+        }
+        .settings-btn:hover {
+            background: #eaeaea;
         }
 
         /* --- Pages --- */
@@ -209,7 +213,7 @@
         .snippet-list { margin-bottom: 8px; }
         .snippet-card {
             background: transparent;
-            padding: 9px 4px;
+            padding: 9px 12px;
             margin: 0;
             font-size: 15px;
             display: flex;
@@ -219,14 +223,26 @@
             border-bottom: 1px solid #dcdcdc;
             position: relative;
             padding-top: 14px;
+            transition: background 120ms ease, color 120ms ease, transform 80ms ease;
+            border-radius: 6px;
+        }
+        .snippet-card:hover {
+            background: #c21b1b;
+            color: #fff;
+        }
+        .snippet-card:hover .snippet-text,
+        .snippet-card:hover .snippet-title,
+        .snippet-card:hover .snippet-source {
+            color: #fff;
         }
         .snippet-body { flex: 1; min-width: 0; }
         .snippet-title { display:block; font-size:12px; font-weight:700; color:#111; font-family:Cambria, "Times New Roman", serif; margin-bottom:4px; }
-        .snippet-text { word-wrap: break-word; color: #111; font-size:17px; line-height:1.28; font-family: Cambria, "Times New Roman", serif; margin-bottom:4px; }
+        .snippet-title[href] { text-decoration: underline; }
+        .snippet-text { word-wrap: break-word; color: #111; font-size:17px; line-height:1.28; font-family: Cambria, "Times New Roman", serif; margin-bottom:4px; display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 4; overflow: hidden; }
         .search-highlight { background: #fff09e; color: #111; padding: 0 2px; border-radius: 2px; }
         .snippet-source { display:block; font-size:11px; color:#666; font-family:Arial, sans-serif; }
 
-        /* Small icon actions in upper-right of each snippet card */
+        /* Small icon actions in upper-right of each snippet card - hidden until hover */
         .card-actions {
             position: absolute;
             top: 6px;
@@ -234,6 +250,13 @@
             display: flex;
             gap: 6px;
             align-items: center;
+            opacity: 0;
+            pointer-events: none;
+            transition: opacity 120ms ease;
+        }
+        .snippet-card:hover .card-actions {
+            opacity: 1;
+            pointer-events: auto;
         }
         .icon-btn {
             width: 22px;
@@ -245,9 +268,29 @@
             display: inline-flex;
             align-items: center;
             justify-content: center;
-            color: #333;
+            color: inherit;
         }
         .icon-btn svg { width: 16px; height: 16px; }
+        .copy-tooltip {
+            position: absolute;
+            top: 6px;
+            right: 60px;
+            background: rgba(255,255,255,0.95);
+            color: #111;
+            border-radius: 14px;
+            padding: 4px 8px;
+            font-size: 11px;
+            font-family: Arial, sans-serif;
+            box-shadow: 0 1px 6px rgba(0,0,0,0.12);
+            opacity: 0;
+            transform: translateY(-4px);
+            pointer-events: none;
+            transition: opacity 120ms ease, transform 120ms ease;
+        }
+        .copy-tooltip.visible {
+            opacity: 1;
+            transform: translateY(0);
+        }
         .snippet-controls {
             display: flex;
             flex-direction: column;
@@ -296,13 +339,15 @@
             min-height: 86px;
             position: relative;
         }
-        .collection-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.08); }
+        .collection-card:hover { box-shadow: 0 4px 14px rgba(0,0,0,0.08); background: #c21b1b; color: #fff; }
+        .collection-card:hover .title, .collection-card:hover .count { color: #fff; }
         .collection-card .card-actions {
             position: absolute;
             bottom: 8px;
             right: 8px;
             top: auto;
         }
+        .collection-card .chev { color: currentColor; }
         .collection-card .meta {
             display: flex;
             flex-direction: column;
@@ -319,6 +364,9 @@
             border-bottom: 1px solid #dadada;
             background: transparent;
         }
+        .page-item:hover { background: #c21b1b; color: #fff; }
+        .page-item:hover .title, .page-item:hover .count { color: #fff; }
+        .page-item .chev { color: currentColor; }
         .page-item:last-child { border-bottom: none; }
         .page-item .meta {
             display: flex;
@@ -367,7 +415,7 @@
             padding: 6px 0;
         }
 
-        /* Small UI text (counts, numbers) should use Arial per spec */
+        /* Small UI text (countson, numbers) should use Arial per spec */
         .small-count { font-family: Arial, sans-serif; }
 
         /* Quick fade animation for appearing elements */
@@ -382,8 +430,8 @@
         <div class="tab active" data-tab="all">All View</div>
         <div class="tab" data-tab="by-site">Page View</div>
         <div class="tab" data-tab="collections">Collections View</div>
-        <input id="search-input" class="search-input" type="search" placeholder="Search keywords..." aria-label="Search quotes" />
-        <button id="sort-toggle" class="sort-toggle" title="Toggle sort order">Sort: Date</button>
+        <input id="search-input" class="search-input" type="search" placeholder="Search..." aria-label="Search quotes" />
+        <button id="settings-btn" class="settings-btn" title="Settings">⚙</button>
     </div>
 
     <!-- Page Container -->
@@ -431,6 +479,22 @@
         </div>
 
     </div>
+    <div id="settings-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:1000; align-items:center; justify-content:center;">
+        <div style="background:white; border-radius:14px; padding:22px; width:460px; max-height:520px; display:flex; flex-direction:column; box-shadow:0 8px 30px rgba(0,0,0,0.18);">
+            <div style="font-size:16px; font-family:Cambria, 'Times New Roman', serif; font-weight:700; color:#111; margin-bottom:10px;">Settings</div>
+            <div style="font-size:13px; color:#333; line-height:1.5; margin-bottom:18px;">Export or import your saved quotes as a database file. Imported quotes will be merged into your current library.</div>
+            <button id="export-db-btn" style="width:100%; padding:11px; background:#c21b1b; color:#fff; border:none; border-radius:10px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif; margin-bottom:10px;">Export database</button>
+            <button id="import-db-btn" style="width:100%; padding:11px; background:#fff; color:#111; border:1px solid #c21b1b; border-radius:10px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif; margin-bottom:10px;">Import database</button>
+            <label for="sort-select" style="font-size:13px; color:#333; margin:0 0 6px 0;">Sort order</label>
+            <select id="sort-select" style="width:100%; padding:10px; border:1px solid #d1d1d1; border-radius:10px; background:white; font-size:13px; font-family:Arial,sans-serif; margin-bottom:10px;">
+                <option value="date">Date</option>
+                <option value="alpha">A–Z</option>
+            </select>
+            <input id="import-db-input" type="file" accept=".json,.db" style="display:none;" />
+            <div id="settings-feedback" style="font-size:12px; color:#c21b1b; min-height:18px; margin-top:8px; opacity:0; transition:opacity 140ms ease;"></div>
+            <button id="settings-modal-close" style="margin-top:18px; width:100%; padding:11px; background:#f4f4f4; border:none; border-radius:10px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Close</button>
+        </div>
+    </div>
     <div id="pager-row" style="display:none; align-items:center; justify-content:center; gap:12px; padding:8px 0 6px 0; border-top:1px solid #eee; margin-top:6px;">
         <button id="pager-prev" style="background:none;border:none;font-family:Arial,sans-serif;cursor:pointer">&lt;</button>
         <div id="pager-info" class="small-count"></div>
@@ -439,13 +503,16 @@
 
     <!-- Quote Detail Modal -->
     <div id="quote-modal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.4); z-index:999; align-items:center; justify-content:center;">
-        <div style="background:white; border-radius:12px; padding:22px; width:420px; max-height:480px; display:flex; flex-direction:column; box-shadow:0 4px 20px rgba(0,0,0,0.2);">
-            <div id="quote-modal-context-before" style="font-size:12px; color:#666; font-style:italic; line-height:1.5; padding-bottom:8px; font-family:Cambria,'Times New Roman',serif; display:none;"></div>
-            <div id="quote-modal-text" style="font-size:17px; color:#111; font-weight:700; line-height:1.6; padding:12px 0; border-top:2px solid #c21b1b; border-bottom:2px solid #c21b1b; margin:4px 0; word-wrap:break-word; font-family:Cambria,'Times New Roman',serif;"></div>
-            <div id="quote-modal-context-after" style="font-size:12px; color:#666; font-style:italic; line-height:1.5; padding-top:8px; font-family:Cambria,'Times New Roman',serif; display:none;"></div>
+        <div style="background:white; border-radius:12px; padding:22px; width:420px; max-height:480px; display:flex; flex-direction:column; box-shadow:0 4px 20px rgba(0,0,0,0.2); position:relative;">
+            <div id="quote-modal-combined" style="font-size:16px; color:#777; line-height:1.5; padding:8px 0; font-family:Cambria,'Times New Roman',serif; display:none; word-wrap:break-word;"></div>
             <div id="quote-modal-saved-at" style="font-size:12px; color:#666; margin-top:10px; font-family:Arial,sans-serif; display:none;"></div>
             <a id="quote-modal-source" target="_blank" style="font-size:11px; color:#666; font-family:Arial,sans-serif; margin-top:8px; display:none; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; text-decoration:none;"></a>
-            <button id="quote-modal-cancel" style="margin-top:14px; width:100%; padding:8px; background:#f4f4f4; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Close</button>
+            <div style="display:flex; gap:0; margin-top:12px;">
+                <button id="quote-modal-copy" style="flex:1; padding:8px; background:#111; color:#fff; border:none; border-radius:6px 0 0 6px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Copy full text</button>
+                <button id="quote-modal-png" style="flex:1; padding:8px; background:#fff; color:#111; border:1px solid #ccc; border-radius:0 6px 6px 0; border-left:none; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Save as PNG</button>
+            </div>
+            <div id="quote-modal-tooltip" style="position:absolute; bottom:24px; left:50%; transform:translateX(-50%); background:rgba(0,0,0,0.85); color:#fff; border-radius:8px; padding:6px 12px; font-size:11px; font-family:Arial,sans-serif; white-space:nowrap; opacity:0; pointer-events:none; transition:opacity 140ms ease; z-index:1001;"></div>
+            <button id="quote-modal-cancel" style="margin-top:12px; width:100%; padding:8px; background:#f4f4f4; border:none; border-radius:6px; cursor:pointer; font-size:13px; font-family:Arial,sans-serif;">Close</button>
         </div>
     </div>
     
